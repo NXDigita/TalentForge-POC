@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String    @id @default(uuid())
+  email          String    @unique
+  password       String
+  name           String
+  domain         String
+  tier           String
+  xp             Int       @default(0)
+  walletAddress  String?
+  submissions    Submission[]
+  badges         Badge[]
+  psychProfile   PsychProfile?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model Problem {
+  id          String       @id @default(uuid())
+  title       String
+  description String
+  tier        String
+  domain      String
+  reward      Int
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  submissions Submission[]
+}
+
+model Submission {
+  id          String    @id @default(uuid())
+  user        User      @relation(fields: [userId], references: [id])
+  userId      String
+  problem     Problem   @relation(fields: [problemId], references: [id])
+  problemId   String
+  code        String
+  score       Int?
+  feedback    String?
+  status      String    @default("pending")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Badge {
+  id          String   @id @default(uuid())
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String
+  title       String
+  nftTokenId  String?
+  mintedAt    DateTime?
+  createdAt   DateTime @default(now())
+}
+
+model PsychProfile {
+  id          String   @id @default(uuid())
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String
+  logical     Int
+  detail      Int
+  persistence Int
+  learning    Int
+  createdAt   DateTime @default(now())
+}
+
+model Review {
+  id          String   @id @default(uuid())
+  submission  Submission @relation(fields: [submissionId], references: [id])
+  submissionId String
+  reviewer    String
+  comment     String?
+  score       Int
+  createdAt   DateTime @default(now())
+}
