@@ -13,7 +13,7 @@ model User {
   password       String
   name           String
   domain         String
-  tier           String
+  tier           String    @default("Explorer")
   xp             Int       @default(0)
   walletAddress  String?
   submissions    Submission[]
@@ -47,6 +47,7 @@ model Submission {
   status      String    @default("pending")
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  reviews     Review[]
 }
 
 model Badge {

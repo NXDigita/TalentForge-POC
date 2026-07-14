@@ -7,6 +7,8 @@
 * **Stage:** Proof of Concept (POC) Development
 * **Timeline:** 10-Week Execution Plan
 
+Use always combination of Jetbrains Mono fonts
+
 ---block
 
 ## 2. Executive Summary
