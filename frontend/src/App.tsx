@@ -8,26 +8,28 @@ import Dashboard from './pages/Dashboard';
 import AuthCallback from './pages/AuthCallback';
 import RequireAuth from './components/RequireAuth';
 import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 
 function App() {
   return (
-    <AuthProvider>
-      <Routes>
+    <ThemeProvider>
+      <AuthProvider>
+        <Routes>
         <Route path="/auth-callback" element={<AuthCallback />} />
-        <Route path="/" element={<AppShell />}>
-          <Route index element={<Home />} />
-          
-          {/* Protected Routes */}
-          <Route element={<RequireAuth />}>
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="profile" element={<Profile />} />
+        <Route path="/" element={<Home />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        
+        {/* Protected Workspace Layout */}
+        <Route element={<RequireAuth />}>
+          <Route element={<AppShell />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/profile" element={<Profile />} />
           </Route>
-
-          <Route path="login" element={<LoginPage />} />
-          <Route path="register" element={<RegisterPage />} />
         </Route>
       </Routes>
-    </AuthProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 
