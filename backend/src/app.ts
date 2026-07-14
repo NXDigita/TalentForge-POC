@@ -1,6 +1,8 @@
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
+import passport from 'passport';
+import './config/passport'; // Load Google strategy configuration
 import authRoutes from './routes/auth';
 import studentRoutes from './routes/student';
 
@@ -8,6 +10,7 @@ const app = express();
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
+app.use(passport.initialize());
 
 app.use('/api/auth', authRoutes);
 app.use('/api/students', studentRoutes);

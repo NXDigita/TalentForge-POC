@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -14,6 +17,11 @@ const registerSchema = z.object({
 type RegisterForm = z.infer<typeof registerSchema>;
 
 export default function Register() {
+  const { registerUser } = useAuth();
+  const navigate = useNavigate();
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const { register, handleSubmit, formState: { errors } } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
@@ -21,8 +29,18 @@ export default function Register() {
     }
   });
 
-  const onSubmit = (data: RegisterForm) => {
-    console.log('Register Payload:', data);
+  const onSubmit = async (data: RegisterForm) => {
+    try {
+      setApiError(null);
+      setIsSubmitting(true);
+      await registerUser(data.name, data.email, data.domain, data.password);
+      navigate('/dashboard');
+    } catch (err: any) {
+      console.error(err);
+      setApiError(err.response?.data?.error || 'Registration failed. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -31,6 +49,12 @@ export default function Register() {
         <h2 className="text-2xl font-bold tracking-tight text-slate-900">Create Account</h2>
         <p className="text-sm text-slate-500 mt-1">Get started with TalentForge performance testing</p>
       </div>
+
+      {apiError && (
+        <div className="mb-4 rounded-xl bg-red-50 p-4 border border-red-100 text-xs font-semibold text-red-600">
+          {apiError}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
@@ -94,10 +118,11 @@ export default function Register() {
         </div>
 
         <button
-          className="w-full rounded-xl bg-brand-600 py-3 text-sm font-semibold text-white shadow-md shadow-brand-500/20 transition-all hover:bg-brand-700 hover:shadow-brand-500/30"
+          className="w-full rounded-xl bg-brand-600 py-3 text-sm font-semibold text-white shadow-md shadow-brand-500/20 transition-all hover:bg-brand-700 hover:shadow-brand-500/30 disabled:opacity-50"
           type="submit"
+          disabled={isSubmitting}
         >
-          Create account
+          {isSubmitting ? 'Creating account...' : 'Create account'}
         </button>
       </form>
     </div>

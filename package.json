@@ -19,5 +19,10 @@
   },
   "devDependencies": {
     "concurrently": "^8.0.0"
+  },
+  "msw": {
+    "workerDirectory": [
+      "frontend\\public"
+    ]
   }
 }
