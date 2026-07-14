@@ -24,15 +24,18 @@ model User {
 }
 
 model Problem {
-  id          String       @id @default(uuid())
-  title       String
-  description String
-  tier        String
-  domain      String
-  reward      Int
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  submissions Submission[]
+  id              String       @id @default(uuid())
+  title           String
+  slug            String       @unique
+  description     String
+  tier            String
+  domain          String
+  reward          Int
+  publicTestCases Json?
+  hiddenTestCases Json?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  submissions     Submission[]
 }
 
 model Submission {
