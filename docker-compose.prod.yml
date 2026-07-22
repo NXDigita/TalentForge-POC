@@ -1,35 +1,22 @@
-# TalentForge — local/dev infrastructure
-# Usage:  cp .env.example .env  &&  docker compose up -d
-# Note: the top-level `version:` key is obsolete in Compose v2 and intentionally removed.
-
-name: talentforge
+name: talentforge-prod
 
 services:
   postgres:
-    image: postgres:16.4-alpine          # pin minor version — reproducible across both machines
-    restart: unless-stopped
+    image: postgres:16.4-alpine
+    restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-talentforge}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-talentforge}
-      # faster local dev; do NOT use in prod compose file
-      POSTGRES_INITDB_ARGS: "--data-checksums"
-    command: >
-      postgres
-      -c shared_buffers=256MB
-      -c max_connections=100
-      -c log_min_duration_statement=200
     volumes:
       - postgres-data:/var/lib/postgresql/data
-    ports:
-      - "127.0.0.1:5433:5432"            # bind to localhost only — never expose DB on 0.0.0.0
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-talentforge} -d ${POSTGRES_DB:-talentforge}"]
       interval: 5s
       timeout: 3s
       retries: 10
       start_period: 10s
-    shm_size: 256mb                      # avoids Postgres shared-memory errors under load tests
+    shm_size: 256mb
     deploy:
       resources:
         limits:
@@ -37,8 +24,7 @@ services:
 
   redis:
     image: redis:7.4-alpine
-    restart: unless-stopped
-    # AOF persistence (BullMQ jobs survive restarts) + password + memory cap
+    restart: always
     command: >
       redis-server
       --appendonly yes
@@ -48,8 +34,6 @@ services:
       --maxmemory-policy noeviction
     volumes:
       - redis-data:/data
-    ports:
-      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD-SHELL", "redis-cli -a $$REDIS_PASSWORD ping | grep PONG"]
       interval: 5s
@@ -61,17 +45,14 @@ services:
           memory: 384m
 
   minio:
-    image: minio/minio:RELEASE.2025-04-22T22-12-26Z   # pin — `latest` breaks reproducibility
-    restart: unless-stopped
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    restart: always
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER in .env}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
     volumes:
       - minio-data:/data
-    ports:
-      - "127.0.0.1:9000:9000"
-      - "127.0.0.1:9001:9001"
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 10s
@@ -83,8 +64,6 @@ services:
         limits:
           memory: 512m
 
-  # One-shot init: creates the buckets your app expects, then exits.
-  # Removes the "bucket does not exist" class of first-run bugs.
   minio-init:
     image: minio/mc:RELEASE.2025-04-16T18-13-26Z
     depends_on:
@@ -103,14 +82,61 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     restart: "no"
 
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: always
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - INTERNAL_SECRET=${INTERNAL_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - NODE_ENV=production
+      - CORS_ORIGIN=https://staging.talentforge.in
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    restart: always
+    environment:
+      - REDIS_URL=${REDIS_URL}
+      - BACKEND_INTERNAL_URL=${BACKEND_INTERNAL_URL}
+      - INTERNAL_SECRET=${INTERNAL_SECRET}
+      - NODE_ENV=production
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./frontend/dist:/usr/share/caddy
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+
 volumes:
   postgres-data:
   redis-data:
   minio-data:
-
-# Default network is created automatically as `talentforge_default`.
-# App services (backend/worker) added later should use:
-#   depends_on:
-#     postgres: { condition: service_healthy }
-#     redis:    { condition: service_healthy }
-#     minio:    { condition: service_healthy }
+  caddy_data:
+  caddy_config:

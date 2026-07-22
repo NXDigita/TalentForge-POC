@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js 22.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22.x'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm install
+      
+    - name: Prisma Generate
+      run: cd backend && npx prisma generate
+
+    - name: Typecheck Backend
+      run: npm --workspace backend run build
+
+    - name: Typecheck Worker
+      run: npm --workspace worker run build
+
+    - name: Lint & Typecheck Frontend
+      run: |
+        npm --workspace frontend run lint
+        npm --workspace frontend run type-check
+
+    - name: Build Frontend
+      run: npm --workspace frontend run build
