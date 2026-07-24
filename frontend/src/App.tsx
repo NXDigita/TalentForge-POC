@@ -13,6 +13,7 @@ import Submissions from './pages/Submissions';
 import Guide from './pages/Guide';
 import NotFound from './pages/NotFound';
 import AuthCallback from './pages/AuthCallback';
+import VerifyBadge from './pages/VerifyBadge';
 import RequireAuth from './components/RequireAuth';
 import ErrorBoundary from './components/ErrorBoundary';
 import { AuthProvider } from './context/AuthContext';
@@ -26,6 +27,7 @@ function App() {
           <Toaster position="top-right" richColors closeButton />
           <Routes>
             <Route path="/auth-callback" element={<AuthCallback />} />
+            <Route path="/verify/:id" element={<VerifyBadge />} />
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />

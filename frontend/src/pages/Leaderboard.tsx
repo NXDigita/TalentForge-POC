@@ -5,35 +5,66 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
-  TrendingUp,
-  TrendingDown,
+  Eye,
+  EyeOff,
   Loader2,
   Users,
 } from 'lucide-react';
-import { getLeaderboard, LeaderboardEntry, LeaderboardResponse } from '../services/api';
+import { getLeaderboard, LeaderboardResponse } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import axios from 'axios';
+import { toast } from 'sonner';
 
 export default function Leaderboard() {
+  const { user, checkAuth } = useAuth();
   const [activeTab, setActiveTab] = useState<'global' | 'cohort' | 'friends' | 'weekly'>('cohort');
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<LeaderboardResponse | null>(null);
+  const [isAnonymizing, setIsAnonymizing] = useState(false);
+
+  const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
 
   useEffect(() => {
-    async function fetchLeaderboard() {
-      try {
-        setLoading(true);
-        const res = await getLeaderboard(page, limit, activeTab);
-        setData(res);
-      } catch (err) {
-        console.error('Failed to load leaderboard:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
     fetchLeaderboard();
   }, [page, limit, activeTab]);
+
+  async function fetchLeaderboard() {
+    try {
+      setLoading(true);
+      const res = await getLeaderboard(page, limit, activeTab);
+      setData(res);
+    } catch (err) {
+      console.error('Failed to load leaderboard:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const handleToggleAnonymize = async () => {
+    try {
+      setIsAnonymizing(true);
+      const targetState = !user?.isAnonymized;
+      await axios.patch(
+        `${apiUrl}/students/anonymize`,
+        { isAnonymized: targetState },
+        { withCredentials: true }
+      );
+      toast.success(
+        targetState
+          ? 'Profile anonymized on public leaderboard'
+          : 'Profile name visible on leaderboard'
+      );
+      await checkAuth();
+      await fetchLeaderboard();
+    } catch (err) {
+      console.error('Failed to toggle anonymize:', err);
+      toast.error('Failed to update privacy preference');
+    } finally {
+      setIsAnonymizing(false);
+    }
+  };
 
   const handleTabChange = (newTab: 'global' | 'cohort' | 'friends' | 'weekly') => {
     setActiveTab(newTab);
@@ -49,19 +80,44 @@ export default function Leaderboard() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-16 font-sans text-slate-100">
-      {/* Header Section matching screenshot */}
-      <div className="space-y-3">
-        <div className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-3.5 py-1 text-[11px] font-bold text-slate-400 border border-slate-800 uppercase tracking-widest">
-          <span className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
-          COHORT 2026-Q2
+      {/* Header Section with Anonymized Profile Toggle */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-2">
+          <div className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-3.5 py-1 text-[11px] font-bold text-slate-400 border border-slate-800 uppercase tracking-widest">
+            <span className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
+            COHORT 2026-Q2
+          </div>
+
+          <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+            Leaderboard
+          </h1>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Top performers ranked by verified XP & AI badge achievements this season.
+          </p>
         </div>
 
-        <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
-          Leaderboard
-        </h1>
-        <p className="text-xs text-slate-400 leading-relaxed">
-          Top performers across all simulation domains this season.
-        </p>
+        {/* Anonymized Toggle Button */}
+        <div className="flex items-center gap-3 bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
+          <div className="text-right">
+            <span className="text-xs font-bold text-white block">Leaderboard Privacy</span>
+            <span className="text-[10px] text-slate-400">
+              {user?.isAnonymized ? 'Anonymized Mode' : 'Public Name Mode'}
+            </span>
+          </div>
+
+          <button
+            onClick={handleToggleAnonymize}
+            disabled={isAnonymizing}
+            className={`flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all border ${
+              user?.isAnonymized
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                : 'bg-purple-600/20 text-purple-300 border-purple-500/40 hover:bg-purple-600 hover:text-white'
+            }`}
+          >
+            {user?.isAnonymized ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            {user?.isAnonymized ? 'Anonymized' : 'Make Anonymous'}
+          </button>
+        </div>
       </div>
 
       {/* Top 3 Podium Cards Grid matching screenshot */}

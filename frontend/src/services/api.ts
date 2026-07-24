@@ -349,6 +349,7 @@ export interface LeaderboardEntry {
   passRate: number;
   trend: number;
   isUser?: boolean;
+  isAnonymized?: boolean;
   handles?: string;
 }
 

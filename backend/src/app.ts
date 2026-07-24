@@ -11,6 +11,7 @@ import './config/passport'; // Load Google strategy configuration
 import authRoutes from './routes/auth';
 import studentRoutes from './routes/student';
 import internalRoutes from './routes/internal';
+import verifyRoutes from './routes/verify';
 
 // Sentry Observability Setup
 if (process.env.SENTRY_DSN) {
@@ -38,6 +39,7 @@ app.get('/', (req, res) => {
 });
 app.use('/api/auth',     authRoutes);
 app.use('/api/students', studentRoutes);
+app.use('/api/verify',   verifyRoutes);
 app.use('/internal',     internalRoutes);   // worker-only internal endpoints
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 

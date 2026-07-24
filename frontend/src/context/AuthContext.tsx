@@ -9,6 +9,7 @@ interface User {
   domain: string;
   tier: string;
   xp: number;
+  isAnonymized?: boolean;
 }
 
 interface AuthContextType {
@@ -16,6 +17,7 @@ interface AuthContextType {
   accessToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  checkAuth: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   registerUser: (name: string, email: string, domain: 'cse' | 'ece', password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -138,41 +140,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const checkAuth = async () => {
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      setIsLoading(false);
+      return;
+    }
+
+    if (token.startsWith('mock_')) {
+      const storedEmail = localStorage.getItem('userEmail') || MOCK_USER.email;
+      setUser({
+        ...MOCK_USER,
+        email: storedEmail,
+        name: storedEmail.split('@')[0],
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const response = await api.get('/auth/me');
+      setUser(response.data.user);
+    } catch (err) {
+      console.warn('Auto login check failed, using mock profile fallback');
+      const storedEmail = localStorage.getItem('userEmail') || MOCK_USER.email;
+      setUser({
+        ...MOCK_USER,
+        email: storedEmail,
+        name: storedEmail.split('@')[0],
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const checkAuth = async () => {
-      const token = localStorage.getItem('accessToken');
-      if (!token) {
-        setIsLoading(false);
-        return;
-      }
-
-      if (token.startsWith('mock_')) {
-        const storedEmail = localStorage.getItem('userEmail') || MOCK_USER.email;
-        setUser({
-          ...MOCK_USER,
-          email: storedEmail,
-          name: storedEmail.split('@')[0],
-        });
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        const response = await api.get('/auth/me');
-        setUser(response.data.user);
-      } catch (err) {
-        console.warn('Auto login check failed, using mock profile fallback');
-        const storedEmail = localStorage.getItem('userEmail') || MOCK_USER.email;
-        setUser({
-          ...MOCK_USER,
-          email: storedEmail,
-          name: storedEmail.split('@')[0],
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     checkAuth();
   }, [accessToken]);
 
@@ -185,6 +187,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         accessToken,
         isAuthenticated,
         isLoading,
+        checkAuth,
         login,
         registerUser,
         logout,

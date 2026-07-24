@@ -15,6 +15,7 @@ model User {
   domain         String
   tier           String    @default("Explorer")
   xp             Int       @default(0)
+  isAnonymized   Boolean   @default(false)
   walletAddress  String?
   submissions    Submission[]
   badges         Badge[]
@@ -54,13 +55,19 @@ model Submission {
 }
 
 model Badge {
-  id          String   @id @default(uuid())
-  user        User     @relation(fields: [userId], references: [id])
-  userId      String
-  title       String
-  nftTokenId  String?
-  mintedAt    DateTime?
-  createdAt   DateTime @default(now())
+  id           String    @id @default(uuid())
+  verifyId     String    @unique @default(uuid())
+  user         User      @relation(fields: [userId], references: [id])
+  userId       String
+  title        String
+  problemTitle String?
+  problemSlug  String?
+  score        Int       @default(0)
+  status       String    @default("AI_VERIFIED")
+  pdfUrl       String?
+  nftTokenId   String?
+  mintedAt     DateTime?
+  createdAt    DateTime  @default(now())
 }
 
 model PsychProfile {

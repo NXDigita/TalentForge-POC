@@ -52,34 +52,88 @@ router.post('/feedback/format', async (req, res) => {
   }
 });
 
-// ─── GET /api/students/leaderboard?page=1&limit=10&tab=cohort ─────────────
-// Returns paginated leaderboard candidate rankings and top 3 podium entries.
+// ─── GET /api/students/leaderboard ──────────────────────────────────────────
+// Returns paginated leaderboard candidate rankings and top 3 podium entries with DB integration.
 router.get('/leaderboard', async (req, res) => {
   try {
     const page = Math.max(1, parseInt(String(req.query.page || '1'), 10));
     const limit = Math.max(1, parseInt(String(req.query.limit || '10'), 10));
     const tab = String(req.query.tab || 'cohort');
 
-    const mockCandidates = [
-      { id: '1', rank: 1, name: 'Priya Shah', avatar: '', score: 9840, passRate: 98, trend: 14, isUser: false, handles: 'priyashah.dev' },
-      { id: '2', rank: 2, name: 'Marcus Chen', avatar: '', score: 9612, passRate: 96, trend: 22, isUser: false, handles: 'marcus.dev' },
-      { id: '3', rank: 3, name: 'Aarav Mehta', avatar: '', score: 9405, passRate: 95, trend: 8, isUser: true, handles: 'aarav.mehta' },
-      { id: '4', rank: 4, name: 'Sofia Romano', avatar: '', score: 9308, passRate: 94, trend: 45, isUser: false, handles: 'sofia.r' },
-      { id: '5', rank: 5, name: 'Ken Watanabe', avatar: '', score: 9227, passRate: 92, trend: 18, isUser: false, handles: 'ken.w' },
-      { id: '6', rank: 6, name: 'Liam O\'Brien', avatar: '', score: 9154, passRate: 90, trend: 82, isUser: false, handles: 'liam.ob' },
-      { id: '7', rank: 7, name: 'Yuki Tanaka', avatar: '', score: 9081, passRate: 88, trend: 12, isUser: false, handles: 'yuki.t' },
-      { id: '8', rank: 8, name: 'Arjun Patel', avatar: '', score: 9008, passRate: 86, trend: 34, isUser: false, handles: 'arjun.p' },
-      { id: '9', rank: 9, name: 'Emma Schmidt', avatar: '', score: 8935, passRate: 84, trend: 9, isUser: false, handles: 'emma.s' },
-      { id: '10', rank: 10, name: 'Diego Rivera', avatar: '', score: 8862, passRate: 82, trend: 57, isUser: false, handles: 'diego.r' },
-      { id: '11', rank: 11, name: 'Zara Khan', avatar: '', score: 8789, passRate: 80, trend: -3, isUser: false, handles: 'zara.k' },
-      { id: '12', rank: 12, name: 'Noah Park', avatar: '', score: 8716, passRate: 78, trend: 28, isUser: false, handles: 'noah.p' },
-      { id: '13', rank: 13, name: 'Lena Müller', avatar: '', score: 8643, passRate: 76, trend: 14, isUser: false, handles: 'lena.m' },
-      { id: '14', rank: 14, name: 'Tomás Silva', avatar: '', score: 8570, passRate: 74, trend: 62, isUser: false, handles: 'tomas.s' },
-      { id: '15', rank: 15, name: 'Ava Johnson', avatar: '', score: 8497, passRate: 72, trend: 41, isUser: false, handles: 'ava.j' },
+    // Query real DB users with badges count
+    const dbUsers = await prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        domain: true,
+        tier: true,
+        xp: true,
+        isAnonymized: true,
+        badges: { select: { id: true, score: true } },
+        _count: { select: { submissions: true } },
+      },
+      orderBy: { xp: 'desc' },
+      take: 50,
+    });
+
+    const mockSeed = [
+      { id: 'mock-1', name: 'Priya Shah', score: 9840, domain: 'cse', isAnonymized: false, handles: 'priyashah.dev' },
+      { id: 'mock-2', name: 'Marcus Chen', score: 9612, domain: 'ece', isAnonymized: false, handles: 'marcus.dev' },
+      { id: 'mock-3', name: 'Aarav Mehta', score: 9405, domain: 'cse', isAnonymized: false, handles: 'aarav.mehta' },
+      { id: 'mock-4', name: 'Sofia Romano', score: 9308, domain: 'cse', isAnonymized: false, handles: 'sofia.r' },
+      { id: 'mock-5', name: 'Ken Watanabe', score: 9227, domain: 'ece', isAnonymized: false, handles: 'ken.w' },
     ];
 
-    const podium = mockCandidates.slice(0, 3);
-    const tableCandidates = mockCandidates.slice(3);
+    const mappedDbCandidates = dbUsers.map((u, idx) => {
+      const badgeXp = u.badges.reduce((sum, b) => sum + (b.score || 0) * 10, 0);
+      const totalXp = Math.max(u.xp, badgeXp);
+      const displayName = u.isAnonymized
+        ? `Anonymous Pioneer #${u.id.slice(0, 4).toUpperCase()}`
+        : u.name;
+
+      return {
+        id: u.id,
+        rank: idx + 1,
+        name: displayName,
+        rawName: u.name,
+        avatar: '',
+        score: totalXp || 750,
+        badgesCount: u.badges.length,
+        passRate: Math.min(100, 70 + u.badges.length * 10),
+        trend: 12 + idx * 3,
+        isAnonymized: u.isAnonymized,
+        domain: u.domain,
+        handles: `${u.name.toLowerCase().replace(/\s+/g, '')}.dev`,
+      };
+    });
+
+    // Merge DB candidates with fallback seed if fewer than 5 DB users
+    let allCandidates = [...mappedDbCandidates];
+    if (allCandidates.length < 5) {
+      const remainingMocks = mockSeed.slice(allCandidates.length).map((m, i) => ({
+        id: m.id,
+        rank: allCandidates.length + i + 1,
+        name: m.name,
+        rawName: m.name,
+        avatar: '',
+        score: m.score,
+        badgesCount: 3,
+        passRate: 90,
+        trend: 10,
+        isAnonymized: false,
+        domain: m.domain,
+        handles: m.handles,
+      }));
+      allCandidates = [...allCandidates, ...remainingMocks];
+    }
+
+    // Re-rank all combined candidates
+    allCandidates.sort((a, b) => b.score - a.score);
+    allCandidates = allCandidates.map((c, i) => ({ ...c, rank: i + 1 }));
+
+    const podium = allCandidates.slice(0, 3);
+    const tableCandidates = allCandidates.slice(3);
 
     const startIndex = (page - 1) * limit;
     const endIndex = startIndex + limit;
@@ -92,6 +146,7 @@ router.get('/leaderboard', async (req, res) => {
       tab,
       podium,
       items,
+      allCandidates,
       pagination: {
         page,
         limit,
@@ -101,6 +156,50 @@ router.get('/leaderboard', async (req, res) => {
     });
   } catch (err) {
     console.error('Leaderboard fetch error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── PATCH /api/students/anonymize ──────────────────────────────────────────
+// Toggles the isAnonymized profile setting for the authenticated student.
+router.patch('/anonymize', requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { isAnonymized } = req.body;
+    if (typeof isAnonymized !== 'boolean') {
+      return res.status(400).json({ error: 'isAnonymized boolean required' });
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: { isAnonymized },
+      select: { id: true, name: true, isAnonymized: true },
+    });
+
+    return res.json({ ok: true, user: updatedUser });
+  } catch (err) {
+    console.error('Anonymize toggle error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── GET /api/students/badges ───────────────────────────────────────────────
+// Returns list of earned AI Verified Badges for the authenticated student.
+router.get('/badges', requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const badges = await prisma.badge.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return res.json(badges);
+  } catch (err) {
+    console.error('Badges fetch error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

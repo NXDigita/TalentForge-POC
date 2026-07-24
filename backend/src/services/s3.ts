@@ -45,3 +45,20 @@ export async function getDownloadUrl(key: string, expiresIn = 3600): Promise<str
 
   return getSignedUrl(s3, command, { expiresIn });
 }
+
+/**
+ * Upload a raw Buffer directly to S3 / MinIO
+ */
+export async function uploadBuffer(key: string, buffer: Buffer, contentType: string): Promise<string> {
+  const command = new PutObjectCommand({
+    Bucket: s3Bucket,
+    Key: key,
+    Body: buffer,
+    ContentType: contentType,
+  });
+
+  await s3.send(command);
+  const endpoint = process.env.S3_ENDPOINT ?? 'http://127.0.0.1:9000';
+  return `${endpoint}/${s3Bucket}/${key}`;
+}
+

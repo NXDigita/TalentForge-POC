@@ -24,6 +24,7 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { useGradingSocket } from '../hooks/useGradingSocket';
 import ResultsPanel from '../components/ResultsPanel';
+import ConfettiCelebration from '../components/ConfettiCelebration';
 
 const CODE_TEMPLATES: Record<string, string> = {
   python: `# Python 3 Solution Template
@@ -355,6 +356,9 @@ export default function ProblemDetail() {
             </div>
 
             {/* Collapsible Results Panel Shell */}
+            {status === 'completed' && (result?.scores?.total ?? 0) >= 75 && (
+              <ConfettiCelebration />
+            )}
             <ResultsPanel status={status} result={result} logs={logs} />
           </Panel>
         </PanelGroup>

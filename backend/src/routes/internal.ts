@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { Prisma } from '@prisma/client';
 import { PrismaClient } from '@prisma/client';
+import { checkAndAwardBadge } from '../services/badgeService';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -38,7 +39,13 @@ router.patch('/submissions/:id', requireInternalSecret, async (req, res) => {
       },
     });
 
-    return res.json({ ok: true, submission });
+    // Auto-award badge if score >= 75
+    let awardedBadge = null;
+    if (typeof score === 'number' && score >= 75) {
+      awardedBadge = await checkAndAwardBadge(submission.userId, submission.problemId, score);
+    }
+
+    return res.json({ ok: true, submission, badge: awardedBadge });
   } catch (err: any) {
     // P2025 = record not found in Prisma
     if (err?.code === 'P2025') {

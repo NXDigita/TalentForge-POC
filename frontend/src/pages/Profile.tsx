@@ -1,36 +1,31 @@
-import { useState } from 'react';
+import axios from 'axios';
 import {
-  User,
-  GraduationCap,
-  Code2,
-  Trophy,
-  FileText,
-  Link2,
-  ShieldCheck,
-  Lock,
-  Settings,
-  Mail,
-  Phone,
-  Calendar,
-  Globe,
-  Building,
-  Upload,
-  ExternalLink,
-  Save,
-  CheckCircle2,
-  Sparkles,
-  Flame,
   Award,
-  Plus,
-  Trash2,
-  Eye,
-  Github,
-  Linkedin,
-  Shield,
+  Building,
+  Code2,
+  ExternalLink,
   FileCheck,
-  Check,
+  FileText,
+  Github,
+  Globe,
+  GraduationCap,
+  Link2,
+  Linkedin,
+  Lock,
+  Mail,
+  Plus,
+  Save,
+  Settings,
+  ShieldCheck,
+  Sparkles,
+  Trash2,
+  Trophy,
+  Upload,
+  User
 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import BadgeCard, { BadgeData } from '../components/BadgeCard';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 
@@ -91,6 +86,22 @@ export default function Profile() {
   ]);
   const [newAchTitle, setNewAchTitle] = useState('');
   const [newAchIssuer, setNewAchIssuer] = useState('');
+
+  // 4b. AI Verified Badges State
+  const [userBadges, setUserBadges] = useState<BadgeData[]>([]);
+  const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
+
+  useEffect(() => {
+    async function fetchBadges() {
+      try {
+        const res = await axios.get(`${apiUrl}/students/badges`, { withCredentials: true });
+        setUserBadges(res.data || []);
+      } catch (err) {
+        console.warn('Failed to load badges:', err);
+      }
+    }
+    fetchBadges();
+  }, [apiUrl]);
 
   // 5. Resume State
   const [resumeFileName, setResumeFileName] = useState<string | null>('Karthikeyan_Software_Engineer_Resume.pdf');
@@ -614,7 +625,40 @@ export default function Profile() {
 
       {/* Tab 4: 🏆 Achievements */}
       {activeTab === 'achievements' && (
-        <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-sm space-y-6">
+        <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-sm space-y-8">
+          {/* AI Verified Badges Gallery (S9) */}
+          <div className="space-y-4">
+            <div className="border-b border-slate-100 dark:border-slate-800 pb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Award className="h-5 w-5 text-amber-400" /> AI Verified Badges & Certificates (S9)
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Cryptographically sealed achievements issued automatically for evaluation scores ≥ 75.
+                </p>
+              </div>
+              <span className="rounded-full bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-400 border border-amber-500/30">
+                {userBadges.length} Issued
+              </span>
+            </div>
+
+            {userBadges.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-950/40 p-6 text-center space-y-2">
+                <Sparkles className="h-6 w-6 text-purple-400 mx-auto" />
+                <p className="text-xs font-bold text-slate-300">No AI Verified Badges earned yet</p>
+                <p className="text-[11px] text-slate-500">
+                  Complete algorithmic challenges with a score ≥ 75 to automatically unlock your verified badges & PDF certificates.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {userBadges.map((badge) => (
+                  <BadgeCard key={badge.id} badge={badge} />
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
             <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <Trophy className="h-5 w-5 text-amber-500" /> Honors, Contest Ranks & Certifications
