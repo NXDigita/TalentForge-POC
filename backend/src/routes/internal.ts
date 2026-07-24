@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { PrismaClient } from '@prisma/client';
 
 const router = Router();
@@ -44,6 +45,43 @@ router.patch('/submissions/:id', requireInternalSecret, async (req, res) => {
       return res.status(404).json({ error: 'Submission not found' });
     }
     console.error('[Internal] Submission patch error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /internal/problems/:id/cases
+ * Called by the grading worker to securely fetch both publicTestCases and hiddenTestCases
+ * for a given problem. These are NEVER exposed to the public student API.
+ */
+router.get('/problems/:id/cases', requireInternalSecret, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const problem = await prisma.problem.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        slug: true,
+        title: true,
+        publicTestCases: true,
+        hiddenTestCases: true,
+      },
+    });
+
+    if (!problem) {
+      return res.status(404).json({ error: 'Problem not found' });
+    }
+
+    return res.json({
+      problemId: problem.id,
+      slug: problem.slug,
+      title: problem.title,
+      publicTestCases:  (problem.publicTestCases  as Prisma.JsonArray | null) ?? [],
+      hiddenTestCases:  (problem.hiddenTestCases  as Prisma.JsonArray | null) ?? [],
+    });
+  } catch (err: any) {
+    console.error('[Internal] Problem cases fetch error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
