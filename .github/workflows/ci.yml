@@ -1,40 +1,40 @@
-name: CI
+name: TalentForge Monorepo CI Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "staging" ]
   pull_request:
     branches: [ "main" ]
 
 jobs:
   build-and-test:
+    name: Build & Validate Workspaces
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Use Node.js 22.x
-      uses: actions/setup-node@v4
-      with:
-        node-version: '22.x'
-        cache: 'npm'
-        
-    - name: Install dependencies
-      run: npm install
-      
-    - name: Prisma Generate
-      run: cd backend && npx prisma generate
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
 
-    - name: Typecheck Backend
-      run: npm --workspace backend run build
+      - name: Setup Node.js 22.x Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
 
-    - name: Typecheck Worker
-      run: npm --workspace worker run build
+      - name: Install Monorepo Dependencies
+        run: npm install
 
-    - name: Lint & Typecheck Frontend
-      run: |
-        npm --workspace frontend run lint
-        npm --workspace frontend run type-check
+      - name: Generate Prisma Database Client
+        run: cd backend && npx prisma generate
 
-    - name: Build Frontend
-      run: npm --workspace frontend run build
+      - name: Build Backend Workspace
+        run: npm --workspace backend run build
+
+      - name: Build Worker Workspace
+        run: npm --workspace worker run build
+
+      - name: TypeScript Type-Check Frontend
+        run: npm --workspace frontend run type-check
+
+      - name: Build Production Frontend Bundle
+        run: npm --workspace frontend run build

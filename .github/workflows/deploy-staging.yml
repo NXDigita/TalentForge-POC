@@ -25,7 +25,7 @@ jobs:
           cache: 'npm'
 
       - name: Install Monorepo Dependencies
-        run: npm ci
+        run: npm install
 
       - name: TypeScript Type-Check Frontend
         run: npm --prefix frontend run type-check
