@@ -61,7 +61,7 @@ export default function Home() {
   // Hero Slideshow Carousel State
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isFading, setIsFading] = useState(true);
-  const slideTimer = useRef<NodeJS.Timeout | null>(null);
+  const slideTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Auto-play slideshow every 6 seconds
   useEffect(() => {
