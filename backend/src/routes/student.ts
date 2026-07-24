@@ -52,6 +52,59 @@ router.post('/feedback/format', async (req, res) => {
   }
 });
 
+// ─── GET /api/students/leaderboard?page=1&limit=10&tab=cohort ─────────────
+// Returns paginated leaderboard candidate rankings and top 3 podium entries.
+router.get('/leaderboard', async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(String(req.query.page || '1'), 10));
+    const limit = Math.max(1, parseInt(String(req.query.limit || '10'), 10));
+    const tab = String(req.query.tab || 'cohort');
+
+    const mockCandidates = [
+      { id: '1', rank: 1, name: 'Priya Shah', avatar: '', score: 9840, passRate: 98, trend: 14, isUser: false, handles: 'priyashah.dev' },
+      { id: '2', rank: 2, name: 'Marcus Chen', avatar: '', score: 9612, passRate: 96, trend: 22, isUser: false, handles: 'marcus.dev' },
+      { id: '3', rank: 3, name: 'Aarav Mehta', avatar: '', score: 9405, passRate: 95, trend: 8, isUser: true, handles: 'aarav.mehta' },
+      { id: '4', rank: 4, name: 'Sofia Romano', avatar: '', score: 9308, passRate: 94, trend: 45, isUser: false, handles: 'sofia.r' },
+      { id: '5', rank: 5, name: 'Ken Watanabe', avatar: '', score: 9227, passRate: 92, trend: 18, isUser: false, handles: 'ken.w' },
+      { id: '6', rank: 6, name: 'Liam O\'Brien', avatar: '', score: 9154, passRate: 90, trend: 82, isUser: false, handles: 'liam.ob' },
+      { id: '7', rank: 7, name: 'Yuki Tanaka', avatar: '', score: 9081, passRate: 88, trend: 12, isUser: false, handles: 'yuki.t' },
+      { id: '8', rank: 8, name: 'Arjun Patel', avatar: '', score: 9008, passRate: 86, trend: 34, isUser: false, handles: 'arjun.p' },
+      { id: '9', rank: 9, name: 'Emma Schmidt', avatar: '', score: 8935, passRate: 84, trend: 9, isUser: false, handles: 'emma.s' },
+      { id: '10', rank: 10, name: 'Diego Rivera', avatar: '', score: 8862, passRate: 82, trend: 57, isUser: false, handles: 'diego.r' },
+      { id: '11', rank: 11, name: 'Zara Khan', avatar: '', score: 8789, passRate: 80, trend: -3, isUser: false, handles: 'zara.k' },
+      { id: '12', rank: 12, name: 'Noah Park', avatar: '', score: 8716, passRate: 78, trend: 28, isUser: false, handles: 'noah.p' },
+      { id: '13', rank: 13, name: 'Lena Müller', avatar: '', score: 8643, passRate: 76, trend: 14, isUser: false, handles: 'lena.m' },
+      { id: '14', rank: 14, name: 'Tomás Silva', avatar: '', score: 8570, passRate: 74, trend: 62, isUser: false, handles: 'tomas.s' },
+      { id: '15', rank: 15, name: 'Ava Johnson', avatar: '', score: 8497, passRate: 72, trend: 41, isUser: false, handles: 'ava.j' },
+    ];
+
+    const podium = mockCandidates.slice(0, 3);
+    const tableCandidates = mockCandidates.slice(3);
+
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const items = tableCandidates.slice(startIndex, endIndex);
+
+    const totalItems = tableCandidates.length;
+    const totalPages = Math.ceil(totalItems / limit);
+
+    return res.json({
+      tab,
+      podium,
+      items,
+      pagination: {
+        page,
+        limit,
+        totalItems,
+        totalPages,
+      },
+    });
+  } catch (err) {
+    console.error('Leaderboard fetch error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // ─── GET /api/students/problems?tier=&domain= ────────────────────────────────
 // Queries problems list. hiddenTestCases are NEVER exposed to clients.
 router.get('/problems', async (req, res) => {
