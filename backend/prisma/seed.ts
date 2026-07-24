@@ -1,8 +1,38 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
 async function main() {
+  console.log('👤 Seeding users...');
+  const hashedPassword = await bcrypt.hash('password123', 12);
+
+  await prisma.user.upsert({
+    where: { email: 'tkarthikeyan@gmail.com' },
+    update: { password: hashedPassword },
+    create: {
+      email: 'tkarthikeyan@gmail.com',
+      password: hashedPassword,
+      name: 'Karthikeyan',
+      domain: 'cse',
+      tier: 'Explorer',
+      xp: 100,
+    },
+  });
+
+  await prisma.user.upsert({
+    where: { email: 'student@college.edu' },
+    update: { password: hashedPassword },
+    create: {
+      email: 'student@college.edu',
+      password: hashedPassword,
+      name: 'Demo Student',
+      domain: 'cse',
+      tier: 'Explorer',
+      xp: 0,
+    },
+  });
+
   console.log('🌱 Seeding problems...');
 
   // ─── Problem 1: Two Sum (Easy) ───────────────────────────────────────────

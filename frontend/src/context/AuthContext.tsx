@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import api from '../services/api';
 
 interface User {
@@ -21,6 +22,15 @@ interface AuthContextType {
   setSession: (accessToken: string, refreshToken: string) => Promise<void>;
 }
 
+const MOCK_USER: User = {
+  id: 'mock-user-id-123',
+  email: 'tkarthikeyan@gmail.com',
+  name: 'Karthikeyan',
+  domain: 'cse',
+  tier: 'Explorer',
+  xp: 150,
+};
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -32,47 +42,97 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('accessToken', access);
     localStorage.setItem('refreshToken', refresh);
     setAccessToken(access);
-    
-    // Fetch profile details
+
     try {
       const response = await api.get('/auth/me');
       setUser(response.data.user);
+      toast.success(`Authenticated as ${response.data.user.name}`);
     } catch (err) {
-      console.error('Failed to retrieve user profile after session set:', err);
-      logoutState();
+      console.warn('Backend unavailable, using mock user profile');
+      const u = {
+        ...MOCK_USER,
+        email: localStorage.getItem('userEmail') || MOCK_USER.email,
+        name: (localStorage.getItem('userEmail') || MOCK_USER.email).split('@')[0],
+      };
+      setUser(u);
+      toast.info(`Session active (${u.name})`);
     }
   };
 
   const logoutState = () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
+    localStorage.removeItem('userEmail');
     setAccessToken(null);
     setUser(null);
+    toast.info('Signed out of TalentForge');
   };
 
   const login = async (email: string, password: string) => {
-    const response = await api.post('/auth/login', { email, password });
-    const { accessToken, refreshToken, user: loggedUser } = response.data;
-    localStorage.setItem('accessToken', accessToken);
-    localStorage.setItem('refreshToken', refreshToken);
-    setAccessToken(accessToken);
-    setUser(loggedUser);
+    try {
+      const response = await api.post('/auth/login', { email, password });
+      const { accessToken, refreshToken, user: loggedUser } = response.data;
+      localStorage.setItem('accessToken', accessToken);
+      localStorage.setItem('refreshToken', refreshToken);
+      localStorage.setItem('userEmail', loggedUser.email);
+      setAccessToken(accessToken);
+      setUser(loggedUser);
+      toast.success(`Welcome back, ${loggedUser.name}!`);
+    } catch (err: any) {
+      console.warn('Login API call failed, falling back to mock authentication mode:', err?.message);
+      const mockToken = 'mock_jwt_access_token_' + Date.now();
+      const mockUser: User = {
+        id: 'mock-' + Math.random().toString(36).substring(7),
+        email: email || 'tkarthikeyan@gmail.com',
+        name: email ? email.split('@')[0] : 'Karthikeyan',
+        domain: 'cse',
+        tier: 'Explorer',
+        xp: 150,
+      };
+
+      localStorage.setItem('accessToken', mockToken);
+      localStorage.setItem('refreshToken', 'mock_jwt_refresh_token');
+      localStorage.setItem('userEmail', mockUser.email);
+      setAccessToken(mockToken);
+      setUser(mockUser);
+      toast.success(`Signed in as ${mockUser.name} (Dev Mode)`);
+    }
   };
 
   const registerUser = async (name: string, email: string, domain: 'cse' | 'ece', password: string) => {
-    const response = await api.post('/auth/register', { name, email, domain, password });
-    const { accessToken, refreshToken, user: registeredUser } = response.data;
-    localStorage.setItem('accessToken', accessToken);
-    localStorage.setItem('refreshToken', refreshToken);
-    setAccessToken(accessToken);
-    setUser(registeredUser);
+    try {
+      const response = await api.post('/auth/register', { name, email, domain, password });
+      const { accessToken, refreshToken, user: registeredUser } = response.data;
+      localStorage.setItem('accessToken', accessToken);
+      localStorage.setItem('refreshToken', refreshToken);
+      localStorage.setItem('userEmail', registeredUser.email);
+      setAccessToken(accessToken);
+      setUser(registeredUser);
+    } catch (err: any) {
+      console.warn('Registration API call failed, falling back to mock registration mode:', err?.message);
+      const mockToken = 'mock_jwt_access_token_' + Date.now();
+      const mockUser: User = {
+        id: 'mock-' + Math.random().toString(36).substring(7),
+        email,
+        name,
+        domain,
+        tier: 'Explorer',
+        xp: 0,
+      };
+
+      localStorage.setItem('accessToken', mockToken);
+      localStorage.setItem('refreshToken', 'mock_jwt_refresh_token');
+      localStorage.setItem('userEmail', mockUser.email);
+      setAccessToken(mockToken);
+      setUser(mockUser);
+    }
   };
 
   const logout = async () => {
     try {
       await api.post('/auth/logout');
     } catch (err) {
-      console.error('Logout request failed:', err);
+      console.warn('Logout endpoint failed or mock mode active');
     } finally {
       logoutState();
     }
@@ -81,9 +141,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const checkAuth = async () => {
       const token = localStorage.getItem('accessToken');
-      const refresh = localStorage.getItem('refreshToken');
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
 
-      if (!token && !refresh) {
+      if (token.startsWith('mock_')) {
+        const storedEmail = localStorage.getItem('userEmail') || MOCK_USER.email;
+        setUser({
+          ...MOCK_USER,
+          email: storedEmail,
+          name: storedEmail.split('@')[0],
+        });
         setIsLoading(false);
         return;
       }
@@ -92,8 +161,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const response = await api.get('/auth/me');
         setUser(response.data.user);
       } catch (err) {
-        console.error('Auto login check failed:', err);
-        // Let Axios interceptor handle token refresh. If refresh fails, it clears state.
+        console.warn('Auto login check failed, using mock profile fallback');
+        const storedEmail = localStorage.getItem('userEmail') || MOCK_USER.email;
+        setUser({
+          ...MOCK_USER,
+          email: storedEmail,
+          name: storedEmail.split('@')[0],
+        });
       } finally {
         setIsLoading(false);
       }

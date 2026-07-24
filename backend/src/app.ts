@@ -19,10 +19,18 @@ app.use(express.json());
 app.use(passport.initialize());
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
+app.get('/', (req, res) => {
+  const host = req.headers.host || 'localhost:5001';
+  res.json({
+    service: 'TalentForge Backend API',
+    status: 'online',
+    health: `http://${host}/health`,
+    problemsApi: `http://${host}/api/students/problems`,
+  });
+});
 app.use('/api/auth',     authRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/internal',     internalRoutes);   // worker-only internal endpoints
-
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
 // ─── HTTP + Socket.io server ─────────────────────────────────────────────────
@@ -37,15 +45,26 @@ const io = new Server(server, {
 // Redis adapter: allows the worker's @socket.io/redis-emitter to publish
 // events into socket.io rooms managed by this server.
 async function setupRedisAdapter() {
-  const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379';
+  const redisUrl = process.env.REDIS_URL ?? 'redis://:redis_dev_secret@localhost:6380';
 
-  const pubClient = createClient({ url: redisUrl });
+  const pubClient = createClient({
+    url: redisUrl,
+    socket: {
+      connectTimeout: 2000,
+      reconnectStrategy: false,
+    },
+  });
   const subClient = pubClient.duplicate();
 
   pubClient.on('error', (err) => console.error('[Redis Pub] Error:', err.message));
   subClient.on('error', (err) => console.error('[Redis Sub] Error:', err.message));
 
-  await Promise.all([pubClient.connect(), subClient.connect()]);
+  // Add timeout guard so Express server ALWAYS starts even if Redis is down
+  await Promise.race([
+    Promise.all([pubClient.connect(), subClient.connect()]),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Redis connection timeout (2.5s)')), 2500)),
+  ]);
+
   io.adapter(createAdapter(pubClient, subClient));
   console.log('Socket.io Redis adapter connected');
 }
@@ -68,7 +87,8 @@ io.on('connection', (socket) => {
 });
 
 // ─── Start server ─────────────────────────────────────────────────────────────
-const basePort    = parseInt(process.env.PORT ?? '5000', 10);
+const envPort = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
+const basePort = envPort === 3000 ? 5000 : envPort;
 const portOptions = [basePort, basePort + 1, basePort + 2];
 
 function startServer(index = 0) {
