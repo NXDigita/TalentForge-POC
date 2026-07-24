@@ -48,24 +48,28 @@ npm run dev
 
 ---
 
-## 📁 Monorepo Structure
+## 📁 Monorepo Architecture
 
 ```
 TalentForge-POC/
-├── backend/                  # Express.js + Prisma ORM + Socket.io Server (Port 5001)
+├── backend/                  # Express.js + Prisma ORM + Socket.io + Sentry (Port 5001)
 │   ├── prisma/
 │   │   ├── schema.prisma     # User, Problem, Submission, Badge schema
 │   │   └── seed.ts           # Dummy user seeding script
 │   └── src/
 │       ├── routes/           # Auth, Student, Internal routes
-│       └── app.ts            # Server entry point + Redis Socket adapter
+│       └── app.ts            # Server entry point + Redis Socket adapter + Sentry
 ├── frontend/                 # React 18 + Vite + TypeScript Client (Port 5173)
 │   └── src/
-│       ├── components/       # ResultsPanel, ScoreRing, TestCaseTable, LLMFeedbackPanel
+│       ├── components/       # ResultsPanel, ScoreRing, TestCaseTable, LLMFeedbackPanel, AppShell
 │       ├── context/          # AuthContext, ThemeContext
 │       ├── hooks/            # useGradingSocket hook
-│       └── pages/            # Dashboard, ProblemBoard, ProblemDetail, Profile, Guide, NotFound
-├── worker/                   # BullMQ Sandboxed Autograder & Code Compiler Runner
+│       └── pages/            # Dashboard, ProblemBoard, ProblemDetail, Leaderboard, Submissions, Profile, Guide
+├── worker/                   # BullMQ Sandboxed Autograder & Container Runner
+│   └── src/
+│       └── grader/           # correctness.ts, complexity.ts, style.ts, precheck.ts
+├── load-test/                # Artillery 20-concurrent submission load test (p95 < 5s)
+├── sandbox/                  # Joint E2E 10-canned solutions test matrix
 └── docker-compose.yml        # PostgreSQL (5439), Redis (6380), MinIO (9000)
 ```
 
@@ -73,38 +77,48 @@ TalentForge-POC/
 
 ## ✨ Implemented Core Features
 
-1. **Problem Board & Split Workspace**:
-   - Card grid layout with domain (`CSE`/`ECE`) and difficulty (`Explorer`, `Apprentice`, `Builder`, `Master`) filters.
-   - Resizable horizontal split view (`react-resizable-panels`) with Markdown statements (`react-markdown`) and Monaco Editor (`@monaco-editor/react`).
+1. **Security Precheck Blocklist (`precheck.ts`)**:
+   - Pre-run AST / regex scanner blocking restricted calls pre-execution:
+     - **Python**: `subprocess`, `os.system`, `eval(`, `exec(`, `__import__`, `open(`
+     - **JavaScript**: `child_process`, `fs`, `eval(`, `process.exit`
+     - **Java**: `Runtime.getRuntime`, `ProcessBuilder`, `System.exit`
+   - Immediately sets status to `BLOCKED`.
 
-2. **Real-time Submit UX & Live Status Chips**:
-   - Submit button transitions: `Submit Solution` → `Queued...` → `Evaluating...` → `Graded (98/100)`.
-   - Custom `useGradingSocket(submissionId)` hook with automatic TanStack Query cache invalidations.
+2. **Scaling Ratio Complexity Grader (`complexity.ts`)**:
+   - Executes code across scaled input sizes ($N, 2N, 4N$).
+   - Fits growth ratios $R_1 = T(2N)/T(N)$ and $R_2 = T(4N)/T(2N)$ to classify Big-O complexity ($O(1)$, $O(N)$, $O(N \log N)$, $O(N^2)$) vs `expectedComplexity`.
 
-3. **Test-Case Matrix & Output Diff Viewer**:
-   - Pass (`CheckCircle2`) and Fail (`XCircle`) status icons.
-   - Time (ms) and Memory (MB) metrics per case.
-   - Expandable expected vs. actual output diff comparison.
+3. **In-Container Code Quality Linter (`style.ts`)**:
+   - Parses `pylint` (Python), `eslint` (JavaScript), and `checkstyle` (Java) output inside containers to calculate a 0–100 code style sub-score.
 
-4. **Animated SVG Score Ring**:
-   - Smooth SVG radial progress gauge animating from `0` to total verified score with gradient strokes.
+4. **Weighted Composite Score & Event Emission**:
+   - $\text{Composite Score} = 0.60 \cdot \text{correctness} + 0.30 \cdot \text{complexity} + 0.10 \cdot \text{style}$.
+   - Emits real-time `grading:complete` event payload via `@socket.io/redis-emitter`.
 
-5. **State UIs (`COMPILE_ERROR`, `TIMEOUT`, `OOM`)**:
-   - Monospace `stderr` block with copy button for compilation failures.
-   - Alert banners for `TIMEOUT` (2000ms limit) and `OOM` (256MB limit).
+5. **Submission History & Score Trend Sparkline (`Submissions.tsx`)**:
+   - Interactive SVG score trajectory graph plotting candidate performance over time.
+   - Attempts table with status badges (`COMPLETED`, `QUEUED`, `RUNNING`, `FAILED`, `BLOCKED`) and past-result detail modal.
+   - Live server resubmit cooldown chip (`nextAllowedAt`).
 
-6. **Claude 3.5 LLM Performance Coach**:
-   - Composite score gauge (50% correctness + 30% complexity + 20% style).
-   - 3 Sub-score progress bars.
-   - Live character-by-character typewriter effect for AI coaching recommendations.
-   - Controlled by `VITE_FF_LLM_FEEDBACK` feature flag.
+6. **9-Tab Candidate Profile & Portfolio Manager (`Profile.tsx`)**:
+   - **Personal**: Photo avatar uploader, Full Name (`*`), Email (Read-Only `*`), Mobile, DOB, Gender, Country (`*`), State, City.
+   - **Academic**: College (`*`), Degree (`*`), Department (`CSE`/`ECE`/`IT`/`EEE`, `*`), Year of Study (`*`), Graduation Year (`*`), Student ID, CGPA.
+   - **Skills**: Interactive tech stack chips with proficiency levels and add/remove actions.
+   - **Achievements**: Competitive coding contest ranks (LeetCode, CodeChef) and certifications.
+   - **Resume**: Drag & drop PDF/Docx upload dropzone with 94% ATS compatibility score preview.
+   - **Social Links**: GitHub, LinkedIn, Portfolio, LeetCode, CodeChef.
+   - **Blockchain Credentials**: Polygon Amoy testnet ERC-721 NFT badges with PolygonScan verification links.
+   - **Privacy & Security**: Password update form and 2FA settings.
+   - **Preferences**: Recruiter visibility toggle, PlayStation Dark/Light theme toggles.
 
-7. **Student Dashboard & Candidate Profile**:
-   - Dark-mode responsive PlayStation design language cards.
-   - Tier XP progress bars, psychometric competency index, and Polygon Amoy testnet ERC-721 NFT badge confirmations.
+7. **API-Driven Paginated Leaderboard (`Leaderboard.tsx`)**:
+   - Top 3 Podium Cards (Rank 1 center gold card with glowing border, Rank 2 left silver card, Rank 3 card with `YOU` badge).
+   - Candidate rankings table with 7-day score trends (`+45` green / `-3` red) and pass rate progress bars.
 
-8. **In-App Guide / Help Center**:
-   - Complete platform documentation page (`/guide`) integrated directly into sidebar navigation.
+8. **Resilient BullMQ Tuning & Sentry Observability**:
+   - `stalledInterval: 15_000` ms with `maxStalledCount: 2`.
+   - Selective retry policy: Candidate user errors fail fast with 0 retries; Infra errors retry $\times 2$.
+   - `@sentry/node` integration in backend and worker services.
 
 ---
 
@@ -117,6 +131,7 @@ TalentForge-POC/
 | `GET` | `/api/auth/me` | Retrieves current candidate profile | Yes |
 | `GET` | `/api/students/problems` | Queries problem catalog (hidden test cases excluded) | No |
 | `GET` | `/api/students/problems/:slug` | Retrieves single problem details | No |
-| `GET` | `/api/students/problems/:id/presigned` | Generates MinIO presigned upload URL | Yes |
-| `POST` | `/api/students/problems/:id/submit` | Enqueues code submission to BullMQ sandbox runner | Yes |
+| `GET` | `/api/students/leaderboard` | Returns paginated candidate rankings and podium data | Yes |
+| `GET` | `/api/students/submissions` | Returns candidate submission attempt history | Yes |
+| `POST` | `/api/students/problems/:id/submit` | Enqueues code submission and returns `nextAllowedAt` cooldown | Yes |
 | `POST` | `/api/students/feedback/format` | Formats candidate performance into 3 AI coaching bullets | No |

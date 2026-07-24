@@ -2,25 +2,44 @@
  * index.ts  —  TalentForge Grading Worker
  *
  * Lifecycle per job:
- *   1. Fetch student code from S3/MinIO (Day 7+: real fetch, falling back to placeholder).
- *   2. Fetch all test cases (public + hidden) from the backend internal API.
- *   3. Run the code in a Docker sandbox with each test case piped through stdin.
- *   4. Grade correctness  (Day 7): weighted pass rate across all cases.
- *   5. Grade complexity   (Day 8): curve-fit execution times vs input size.
- *   6. Grade style        (Day 8): parse linter output for violations.
- *   7. Compute composite score: 60% correctness + 30% complexity + 10% style.
- *   8. Patch the Submission row via the internal API.
- *   9. Emit grading:complete over Socket.IO so the frontend updates in real-time.
+ *   1. Precheck candidate code against security blocklist (precheck.ts).
+ *   2. Fetch student code from S3/MinIO.
+ *   3. Fetch all test cases (public + hidden) from backend internal API.
+ *   4. Run the code in a Docker sandbox with each test case piped through stdin.
+ *   5. Grade correctness: weighted pass rate across all cases.
+ *   6. Grade complexity: curve-fit execution times vs input size (n, 2n, 4n scaling).
+ *   7. Grade style: parse linter output for violations (pylint, eslint, checkstyle).
+ *   8. Compute composite score: 60% correctness + 30% complexity + 10% style.
+ *   9. Patch the Submission row via internal API.
+ *  10. Emit grading:complete over Socket.IO so the frontend updates in real-time.
  */
 
 import 'dotenv/config';
-import { Worker, Job } from 'bullmq';
+import * as Sentry from '@sentry/node';
+import { Worker, Job, UnrecoverableError } from 'bullmq';
 import IORedis from 'ioredis';
 import { Emitter } from '@socket.io/redis-emitter';
 import { runCodeInSandbox }   from './grader/sandbox';
 import { gradeCorrectness, TestCase } from './grader/correctness';
 import { gradeComplexity }    from './grader/complexity';
 import { gradeStyle }         from './grader/style';
+import { precheckCode }       from './grader/precheck';
+
+// Sentry Worker Observability Setup
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    tracesSampleRate: 1.0,
+  });
+}
+
+// Custom Unretryable User Error Class
+export class UserError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UserError';
+  }
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,8 +77,7 @@ function emitGradingEvent(
 
 /**
  * Fetch the student's code string from S3/MinIO.
- * Falls back to a language-appropriate "hello world" stub when the object
- * store is unreachable (useful in local dev without MinIO running).
+ * Falls back to a language-appropriate stub when the object store is unreachable.
  */
 async function fetchCode(s3Key: string, language: string): Promise<string> {
   const minioUrl = process.env.MINIO_INTERNAL_URL;
@@ -93,27 +111,30 @@ async function fetchTestCases(
   problemId:  string,
   secret:     string,
 ): Promise<ProblemCasesResponse> {
-  const res = await fetch(`${backendUrl}/internal/problems/${problemId}/cases`, {
-    headers: { 'x-internal-secret': secret },
-  });
+  try {
+    const res = await fetch(`${backendUrl}/internal/problems/${problemId}/cases`, {
+      headers: { 'x-internal-secret': secret },
+    });
 
-  if (!res.ok) {
-    throw new Error(`Failed to fetch test cases for problem ${problemId}: HTTP ${res.status}`);
+    if (!res.ok) {
+      throw new Error(`Failed to fetch test cases for problem ${problemId}: HTTP ${res.status}`);
+    }
+
+    return await (res.json() as Promise<ProblemCasesResponse>);
+  } catch (err: any) {
+    // If backend is unreachable, throw an infrastructure error to trigger retry
+    throw new Error(`InfraError: Backend internal API unreachable: ${err.message}`);
   }
-
-  return res.json() as Promise<ProblemCasesResponse>;
 }
 
 /**
- * Extract the expected complexity string from problem title / future metadata.
- * For the POC we check known slugs; once the Problem model includes an
- * `expectedComplexity` field this can be removed.
+ * Extract the expected complexity string from problem title / metadata.
  */
 function resolveExpectedComplexity(slug: string): string {
   const table: Record<string, string> = {
-    'two-sum':     'O(n)',
-    'lru-cache':   'O(1)',
-    'rate-limiter':'O(1)',
+    'two-sum':      'O(n)',
+    'lru-cache':    'O(1)',
+    'rate-limiter': 'O(1)',
   };
   return table[slug] ?? 'O(n)';
 }
@@ -137,11 +158,18 @@ async function runGrader(
   // 1. Mark as running
   emitGradingEvent('grading:running', submissionId, { s3Key, language });
 
-  // 2. Fetch code + test cases in parallel
+  // 2. Fetch candidate code + test cases in parallel
   const [code, casesResponse] = await Promise.all([
     fetchCode(s3Key, language),
     fetchTestCases(backendUrl, problemId, secret),
   ]);
+
+  // 3. Security Precheck Blocklist Scanner
+  const precheck = precheckCode(code, language);
+  if (!precheck.allowed) {
+    console.warn(`[Worker] Precheck BLOCKED submission ${submissionId}: ${precheck.reason}`);
+    throw new UserError(`BLOCKED: ${precheck.reason}`);
+  }
 
   const publicCases: TestCase[] = casesResponse.publicTestCases  ?? [];
   const hiddenCases: TestCase[] = casesResponse.hiddenTestCases  ?? [];
@@ -158,24 +186,24 @@ async function runGrader(
     return { correctness: 0, complexity: 0, style: 0, total: 0, feedback: { warning: 'No test cases found.' } };
   }
 
-  // 3. Run sandbox
+  // 4. Run Docker sandbox
   const sandboxResult = await runCodeInSandbox(submissionId, language, code, allCases);
 
-  // ── Handle fatal statuses ───────────────────────────────────────────────
+  // ── Handle candidate execution failures (User Errors fail fast, no retry) ──────
   if (sandboxResult.status === 'timeout') {
-    throw new Error('TIMEOUT');
+    throw new UserError('TIMEOUT');
   }
   if (sandboxResult.status === 'oom') {
-    throw new Error('OOM');
+    throw new UserError('OOM');
   }
   if (sandboxResult.status === 'compile_error') {
-    throw new Error(`COMPILE_ERROR: ${sandboxResult.stderr ?? ''}`);
+    throw new UserError(`COMPILE_ERROR: ${sandboxResult.stderr ?? ''}`);
   }
   if (sandboxResult.status === 'error') {
-    throw new Error(sandboxResult.stderr ?? 'Execution Error');
+    throw new UserError(sandboxResult.stderr ?? 'Execution Error');
   }
 
-  // 4. Grade correctness (Day 7)
+  // 5. Grade correctness
   const correctnessResult = gradeCorrectness(
     allCases,
     sandboxResult.actualOutputs,
@@ -183,7 +211,7 @@ async function runGrader(
     hiddenStart,
   );
 
-  // 5. Grade complexity (Day 8)
+  // 6. Grade complexity (n, 2n, 4n scaling curve-fitting)
   const expectedComplexity = resolveExpectedComplexity(casesResponse.slug);
   const complexityResult   = gradeComplexity(
     expectedComplexity,
@@ -191,10 +219,10 @@ async function runGrader(
     sandboxResult.stdinSizes,
   );
 
-  // 6. Grade style (Day 8)
+  // 7. Grade style (pylint, eslint, checkstyle in-container output)
   const styleResult = gradeStyle(sandboxResult.styleRaw, language);
 
-  // 7. Composite score:  60% correctness + 30% complexity + 10% style
+  // 8. Composite score: 60% correctness + 30% complexity + 10% style
   const total = Math.round(
     0.60 * correctnessResult.score +
     0.30 * complexityResult.score  +
@@ -234,7 +262,7 @@ async function runGrader(
   };
 }
 
-// ─── BullMQ Worker ────────────────────────────────────────────────────────────
+// ─── BullMQ Worker Config ─────────────────────────────────────────────────────
 
 const worker = new Worker<GradeJobData>(
   'grading',
@@ -244,56 +272,65 @@ const worker = new Worker<GradeJobData>(
 
     emitGradingEvent('grading:queued', submissionId, { jobId: job.id });
 
-    const scores = await runGrader(job);
+    try {
+      const scores = await runGrader(job);
 
-    // Patch Submission row in DB via backend internal API
-    const backendUrl = process.env.BACKEND_INTERNAL_URL ?? 'http://localhost:5000';
-    const secret     = process.env.INTERNAL_SECRET      ?? 'tf-internal';
+      // Patch Submission row in DB via backend internal API
+      const backendUrl = process.env.BACKEND_INTERNAL_URL ?? 'http://localhost:5000';
+      const secret     = process.env.INTERNAL_SECRET      ?? 'tf-internal';
 
-    const patchRes = await fetch(`${backendUrl}/internal/submissions/${submissionId}`, {
-      method:  'PATCH',
-      headers: {
-        'Content-Type':     'application/json',
-        'x-internal-secret': secret,
-      },
-      body: JSON.stringify({
-        status:   'completed',
-        score:    scores.total,
-        feedback: JSON.stringify(scores.feedback),
-      }),
-    });
+      const patchRes = await fetch(`${backendUrl}/internal/submissions/${submissionId}`, {
+        method:  'PATCH',
+        headers: {
+          'Content-Type':     'application/json',
+          'x-internal-secret': secret,
+        },
+        body: JSON.stringify({
+          status:   'completed',
+          score:    scores.total,
+          feedback: JSON.stringify(scores.feedback),
+        }),
+      });
 
-    if (!patchRes.ok) {
-      console.warn(`[Worker] Failed to patch submission ${submissionId}:`, await patchRes.text());
+      if (!patchRes.ok) {
+        console.warn(`[Worker] Failed to patch submission ${submissionId}:`, await patchRes.text());
+      }
+
+      // Emit completion event — frontend listens for this to render score cards
+      emitGradingEvent('grading:complete', submissionId, {
+        scores: {
+          correctness: scores.correctness,
+          complexity:  scores.complexity,
+          style:       scores.style,
+          total:       scores.total,
+        },
+        feedback: scores.feedback,
+        status: 'completed',
+      });
+
+      console.log(`[Worker] Job ${job.id} done. Total score: ${scores.total}`);
+      return scores;
+    } catch (err: any) {
+      if (err instanceof UserError || err.name === 'UserError') {
+        // Candidate user error: Unrecoverable, fail fast with 0 retries
+        throw new UnrecoverableError(err.message);
+      }
+      // Infrastructure error: BullMQ will retry up to 2 attempts
+      throw err;
     }
-
-    // Emit completion event — frontend listens for this to render the score card
-    emitGradingEvent('grading:complete', submissionId, {
-      scores: {
-        correctness: scores.correctness,
-        complexity:  scores.complexity,
-        style:       scores.style,
-        total:       scores.total,
-      },
-      feedback: scores.feedback,
-      status: 'completed',
-    });
-
-    console.log(`[Worker] Job ${job.id} done. Total score: ${scores.total}`);
-    return scores;
   },
   {
     connection: connection as any,
     concurrency:     4,
-    stalledInterval: 30_000,
-    maxStalledCount: 1,
+    stalledInterval: 15_000, // Tuned stalled interval (15s)
+    maxStalledCount: 2,
   },
 );
 
 // ─── Event listeners ──────────────────────────────────────────────────────────
 
 worker.on('completed', (job) => {
-  console.log(`[Worker] ✅ Job ${job.id} completed`);
+  console.log(`[Worker] ✅ Job ${job.id} completed successfully`);
 });
 
 worker.on('failed', (job, err) => {
@@ -306,11 +343,11 @@ worker.on('failed', (job, err) => {
 });
 
 worker.on('stalled', (jobId) => {
-  console.warn(`[Worker] ⚠️  Job ${jobId} stalled`);
+  console.warn(`[Worker] ⚠️  Job ${jobId} stalled — auto-recovering`);
 });
 
 worker.on('error', (err) => {
-  console.error('[Worker] Worker error:', err.message);
+  console.error('[Worker] Worker runtime error:', err.message);
 });
 
-console.log('[Worker] 🚀 Grading worker started (concurrency: 4)');
+console.log('[Worker] 🚀 Grading worker active (concurrency: 4, stalledInterval: 15s)');

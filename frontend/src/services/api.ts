@@ -133,8 +133,11 @@ export interface Problem {
 
 export interface Submission {
   id: string;
-  status: 'queued' | 'running' | 'completed' | 'failed';
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'BLOCKED';
   score?: number;
+  language?: string;
+  nextAllowedAt?: string;
+  feedback?: any;
   createdAt: string;
   problem: {
     id: string;

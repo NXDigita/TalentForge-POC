@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import * as Sentry from '@sentry/node';
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
@@ -11,6 +11,14 @@ import './config/passport'; // Load Google strategy configuration
 import authRoutes from './routes/auth';
 import studentRoutes from './routes/student';
 import internalRoutes from './routes/internal';
+
+// Sentry Observability Setup
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    tracesSampleRate: 1.0,
+  });
+}
 
 const app = express();
 app.use(helmet());

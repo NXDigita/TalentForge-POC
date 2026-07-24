@@ -89,6 +89,68 @@ function bestFit(ns: number[], ts: number[]): { cls: BigOClass; r2Value: number 
   return best;
 }
 
+/**
+ * Given n-values and time-values, return the best-fitting BigO class and its R².
+ */
+function bestFit(ns: number[], ts: number[]): { cls: BigOClass; r2Value: number } {
+  const candidates: Array<{ cls: BigOClass; xs: number[] }> = [
+    { cls: 'O(1)',       xs: ns.map(() => 1) },
+    { cls: 'O(log n)',   xs: ns.map((n) => Math.log2(safe(n))) },
+    { cls: 'O(n)',       xs: ns.map((n) => n) },
+    { cls: 'O(n log n)', xs: ns.map((n) => n * Math.log2(safe(n))) },
+    { cls: 'O(n^2)',     xs: ns.map((n) => n * n) },
+    { cls: 'O(n^3)',     xs: ns.map((n) => n * n * n) },
+  ];
+
+  let best: { cls: BigOClass; r2Value: number } = { cls: 'unknown', r2Value: -1 };
+  for (const { cls, xs } of candidates) {
+    const score = r2(xs, ts);
+    if (score > best.r2Value) {
+      best = { cls, r2Value: score };
+    }
+  }
+  return best;
+}
+
+/**
+ * Classifies Big-O complexity using ratio fitting across scaled inputs (n, 2n, 4n).
+ * Growth ratios R1 = T(2n)/T(n) and R2 = T(4n)/T(2n):
+ *  - O(1) / O(log n) : R1 ~ 1.0 - 1.3
+ *  - O(n)            : R1 ~ 1.8 - 2.4
+ *  - O(n log n)      : R1 ~ 2.5 - 3.4
+ *  - O(n^2)          : R1 ~ 3.5 - 4.5
+ */
+export function classifyByScalingRatios(timeSamples: Array<{ n: number; elapsedMs: number }>): {
+  estimated: BigOClass;
+  ratios: { r1: number; r2: number };
+} {
+  if (timeSamples.length < 3) {
+    return { estimated: 'O(n)', ratios: { r1: 2.0, r2: 2.0 } };
+  }
+
+  const sorted = [...timeSamples].sort((a, b) => a.n - b.n);
+  const t1 = Math.max(0.1, sorted[0].elapsedMs);
+  const t2 = Math.max(0.1, sorted[Math.floor(sorted.length / 2)].elapsedMs);
+  const t3 = Math.max(0.1, sorted[sorted.length - 1].elapsedMs);
+
+  const r1 = t2 / t1;
+  const r2 = t3 / t2;
+  const avgRatio = (r1 + r2) / 2;
+
+  let estimated: BigOClass = 'O(n)';
+  if (avgRatio <= 1.3) {
+    estimated = 'O(1)';
+  } else if (avgRatio <= 2.4) {
+    estimated = 'O(n)';
+  } else if (avgRatio <= 3.4) {
+    estimated = 'O(n log n)';
+  } else {
+    estimated = 'O(n^2)';
+  }
+
+  return { estimated, ratios: { r1, r2 } };
+}
+
 // ─── Main export ─────────────────────────────────────────────────────────────
 
 /**
@@ -128,7 +190,11 @@ export function gradeComplexity(
   const ns = timeSamples.map((s) => s.n);
   const ts = timeSamples.map((s) => s.elapsedMs);
 
-  const { cls: estimated, r2Value: confidence } = bestFit(ns, ts);
+  const { cls: bestClass, r2Value: confidence } = bestFit(ns, ts);
+  const { estimated: ratioClass } = classifyByScalingRatios(timeSamples);
+
+  // Pick ratioClass if confidence is low, else bestClass
+  const estimated = confidence > 0.6 ? bestClass : ratioClass;
 
   // Look up score from table; fall back to 50 (neutral) if key not found
   const row   = COMPLEXITY_SCORES[expectedComplexity];
@@ -136,3 +202,4 @@ export function gradeComplexity(
 
   return { score, estimated, expected: expectedComplexity, confidence, timeSamples };
 }
+

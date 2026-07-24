@@ -236,10 +236,13 @@ router.post(
         language,
       });
 
+      const nextAllowedAt = new Date(Date.now() + 60_000).toISOString();
+
       return res.status(202).json({
-        submissionId: submission.id,
-        status:       'queued',
-        message:      'Solution queued for grading. Listen to socket event grading:complete for results.',
+        submissionId:  submission.id,
+        status:        'queued',
+        nextAllowedAt,
+        message:       'Solution queued for grading. Listen to socket event grading:complete for results.',
       });
     } catch (err) {
       console.error('Submission error:', err);
