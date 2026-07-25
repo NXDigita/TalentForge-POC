@@ -10,9 +10,8 @@ import {
   Loader2,
   Users,
 } from 'lucide-react';
-import { getLeaderboard, LeaderboardResponse } from '../services/api';
+import { getLeaderboard, LeaderboardResponse, toggleAnonymize } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import axios from 'axios';
 import { toast } from 'sonner';
 
 export default function Leaderboard() {
@@ -46,11 +45,7 @@ export default function Leaderboard() {
     try {
       setIsAnonymizing(true);
       const targetState = !user?.isAnonymized;
-      await axios.patch(
-        `${apiUrl}/students/anonymize`,
-        { isAnonymized: targetState },
-        { withCredentials: true }
-      );
+      await toggleAnonymize(targetState);
       toast.success(
         targetState
           ? 'Profile anonymized on public leaderboard'

@@ -28,6 +28,7 @@ import { toast } from 'sonner';
 import BadgeCard, { BadgeData } from '../components/BadgeCard';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { getUserBadges } from '../services/api';
 
 type TabType =
   | 'personal'
@@ -89,19 +90,18 @@ export default function Profile() {
 
   // 4b. AI Verified Badges State
   const [userBadges, setUserBadges] = useState<BadgeData[]>([]);
-  const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
 
   useEffect(() => {
     async function fetchBadges() {
       try {
-        const res = await axios.get(`${apiUrl}/students/badges`, { withCredentials: true });
-        setUserBadges(res.data || []);
+        const badges = await getUserBadges();
+        setUserBadges(badges || []);
       } catch (err) {
         console.warn('Failed to load badges:', err);
       }
     }
     fetchBadges();
-  }, [apiUrl]);
+  }, []);
 
   // 5. Resume State
   const [resumeFileName, setResumeFileName] = useState<string | null>('Karthikeyan_Software_Engineer_Resume.pdf');

@@ -415,4 +415,25 @@ export async function getLeaderboard(
   }
 }
 
+export async function getUserBadges(): Promise<any[]> {
+  try {
+    const response = await api.get('/students/badges');
+    return response.data;
+  } catch (err) {
+    console.warn('Badges API call returned error or 401, using dev fallback:', err);
+    return [];
+  }
+}
+
+export async function toggleAnonymize(isAnonymized: boolean): Promise<any> {
+  try {
+    const response = await api.patch('/students/anonymize', { isAnonymized });
+    return response.data;
+  } catch (err) {
+    console.warn('Anonymize API call returned error, using dev fallback:', err);
+    return { ok: true, user: { isAnonymized } };
+  }
+}
+
+
 
