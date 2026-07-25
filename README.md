@@ -47,6 +47,8 @@ npm run dev
 - **Backend Health Check**: [http://localhost:5001/health](http://localhost:5001/health)
 
 ---
+Co-authored-by: karthikeyant <tkarthikeyan@gmail.com>
+Co-authored-by: NXDigita <nxdigita.official@gmail.com>
 
 ## 📁 Monorepo Architecture
 
