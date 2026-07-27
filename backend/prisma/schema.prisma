@@ -17,6 +17,7 @@ model User {
   tier           String    @default("Explorer")
   xp             Int       @default(0)
   isAnonymized   Boolean   @default(false)
+  profilePublic  Boolean   @default(true)
   walletAddress  String?
   submissions    Submission[]
   badges         Badge[]
@@ -26,6 +27,7 @@ model User {
   learningPath   LearningPath?
   conversations  Conversation[]
   notifications  Notification[]
+  shortlists     Shortlist[]
 }
 
 model Problem {
@@ -50,12 +52,15 @@ model Submission {
   problem     Problem   @relation(fields: [problemId], references: [id])
   problemId   String
   code        String
+  language    String    @default("python")
   score       Int?
   feedback    String?
   status      String    @default("pending")
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   reviews     Review[]
+
+  @@index([score])
 }
 
 model Badge {
@@ -72,6 +77,8 @@ model Badge {
   nftTokenId   String?
   mintedAt     DateTime?
   createdAt    DateTime  @default(now())
+
+  @@index([status])
 }
 
 model PsychProfile {
@@ -125,4 +132,14 @@ model Notification {
   type      String   @default("INFO")
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+model Shortlist {
+  id          String   @id @default(uuid())
+  employerId  String
+  candidateId String
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [candidateId], references: [id])
+  @@unique([employerId, candidateId])
 }

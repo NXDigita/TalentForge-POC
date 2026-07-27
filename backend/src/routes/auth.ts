@@ -40,15 +40,53 @@ const refreshSchema = z.object({
 });
 
 // Helper: Issue Tokens
-async function issueTokens(userId: string) {
-  const accessToken = jwt.sign({ userId }, JWT_SECRET, { expiresIn: '15m' });
-  const refreshToken = jwt.sign({ userId }, JWT_REFRESH_SECRET, { expiresIn: '7d' });
+async function issueTokens(userId: string, role: string = 'STUDENT') {
+  const accessToken = jwt.sign({ userId, role }, JWT_SECRET, { expiresIn: '7d' });
+  const refreshToken = jwt.sign({ userId, role }, JWT_REFRESH_SECRET, { expiresIn: '7d' });
 
   // Store refresh token in Redis (7 days expiration)
   await redis.set(`refresh:${userId}`, refreshToken, 'EX', 604800);
 
   return { accessToken, refreshToken };
 }
+
+// ─── POST /api/auth/register-employer ───────────────────────────────────────
+router.post('/register-employer', async (req, res) => {
+  try {
+    const { email, password, name, company } = req.body;
+    if (!email || !password || !name) {
+      return res.status(400).json({ error: 'Email, password, and name are required' });
+    }
+
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      return res.status(409).json({ error: 'Account with this email already exists' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+    const user = await prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        name: `${name}${company ? ` (${company})` : ''}`,
+        domain: 'cse',
+        role: 'EMPLOYER',
+        tier: 'Enterprise',
+      },
+    });
+
+    const tokens = await issueTokens(user.id, 'EMPLOYER');
+
+    return res.status(201).json({
+      user: { id: user.id, email: user.email, name: user.name, role: 'EMPLOYER' },
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    });
+  } catch (err) {
+    console.error('Employer register error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // Routes
 router.post('/register', validate(registerSchema), async (req, res) => {

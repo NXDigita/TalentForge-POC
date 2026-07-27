@@ -21,6 +21,10 @@ export default function Register() {
   const navigate = useNavigate();
   const [apiError, setApiError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isEmployer, setIsEmployer] = useState(false);
+  const [companyName, setCompanyName] = useState('');
+
+  const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
 
   const { register, handleSubmit, formState: { errors } } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
@@ -33,11 +37,30 @@ export default function Register() {
     try {
       setApiError(null);
       setIsSubmitting(true);
-      await registerUser(data.name, data.email, data.domain, data.password);
-      navigate('/dashboard');
+      if (isEmployer) {
+        const res = await fetch(`${apiUrl}/auth/register-employer`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: data.name,
+            email: data.email,
+            password: data.password,
+            company: companyName || 'Enterprise Employer',
+          }),
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || 'Employer registration failed');
+        if (result.accessToken) {
+          localStorage.setItem('talentforge_token', result.accessToken);
+        }
+        navigate('/discover');
+      } else {
+        await registerUser(data.name, data.email, data.domain, data.password);
+        navigate('/dashboard');
+      }
     } catch (err: any) {
       console.error(err);
-      setApiError(err.response?.data?.error || 'Registration failed. Please try again.');
+      setApiError(err.message || err.response?.data?.error || 'Registration failed. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -45,9 +68,29 @@ export default function Register() {
 
   return (
     <div className="mx-auto max-w-md rounded-2xl bg-white p-8 border border-slate-100 shadow-xl shadow-slate-100/50">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold tracking-tight text-slate-900">Create Account</h2>
-        <p className="text-sm text-slate-500 mt-1">Get started with TalentForge performance testing</p>
+      <div className="mb-6 space-y-4">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Create Account</h2>
+          <p className="text-sm text-slate-500 mt-1">Get started with TalentForge performance testing</p>
+        </div>
+
+        {/* Account Mode Selector */}
+        <div className="flex rounded-xl bg-slate-100 p-1 text-xs font-bold">
+          <button
+            type="button"
+            onClick={() => setIsEmployer(false)}
+            className={`flex-1 rounded-lg py-2 transition ${!isEmployer ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+          >
+            Candidate Student
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsEmployer(true)}
+            className={`flex-1 rounded-lg py-2 transition ${isEmployer ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+          >
+            Employer Recruiter
+          </button>
+        </div>
       </div>
 
       {apiError && (

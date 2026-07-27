@@ -12,6 +12,8 @@ import Leaderboard from './pages/Leaderboard';
 import Submissions from './pages/Submissions';
 import Assessment from './pages/Assessment';
 import ReviewerPortal from './pages/ReviewerPortal';
+import EmployerDiscover from './pages/EmployerDiscover';
+import EmployerShortlist from './pages/EmployerShortlist';
 import Guide from './pages/Guide';
 import NotFound from './pages/NotFound';
 import AuthCallback from './pages/AuthCallback';
@@ -44,6 +46,8 @@ function App() {
                 <Route path="/submissions" element={<Submissions />} />
                 <Route path="/assessment" element={<Assessment />} />
                 <Route path="/reviewer" element={<ReviewerPortal />} />
+                <Route path="/discover" element={<EmployerDiscover />} />
+                <Route path="/shortlist" element={<EmployerShortlist />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/guide" element={<Guide />} />
               </Route>
