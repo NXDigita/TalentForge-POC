@@ -15,6 +15,8 @@ import internalRoutes from './routes/internal';
 import verifyRoutes from './routes/verify';
 import learningPathRoutes from './routes/learningPath';
 import copilotRoutes from './routes/copilot';
+import reviewerRoutes from './routes/reviewer';
+import reviewsRoutes from './routes/reviews';
 
 // Sentry Observability Setup
 if (process.env.SENTRY_DSN) {
@@ -45,6 +47,8 @@ app.use('/api/students', studentRoutes);
 app.use('/api/verify',   verifyRoutes);
 app.use('/api/learning-path', learningPathRoutes);
 app.use('/api/copilot',  copilotRoutes);
+app.use('/api/reviewer', reviewerRoutes);
+app.use('/api/reviews',  reviewsRoutes);
 app.use('/internal',     internalRoutes);   // worker-only internal endpoints
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 

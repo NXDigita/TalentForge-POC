@@ -33,6 +33,22 @@ async function main() {
     },
   });
 
+  console.log('🛡️ Seeding Reviewer Account...');
+  const reviewerPassword = await bcrypt.hash('Reviewer123!', 12);
+  await prisma.user.upsert({
+    where: { email: 'reviewer@talentforge.in' },
+    update: { password: reviewerPassword, role: 'REVIEWER' },
+    create: {
+      email: 'reviewer@talentforge.in',
+      password: reviewerPassword,
+      name: 'Senior Expert Reviewer',
+      domain: 'cse',
+      role: 'REVIEWER',
+      tier: 'Expert',
+      xp: 5000,
+    },
+  });
+
   console.log('🌱 Seeding problems...');
 
   // ─── Problem 1: Two Sum (Easy) ───────────────────────────────────────────

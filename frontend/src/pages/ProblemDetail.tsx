@@ -87,6 +87,7 @@ export default function ProblemDetail() {
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCelebrationModal, setShowCelebrationModal] = useState(false);
+  const [expertReview, setExpertReview] = useState<any>(null);
 
   const { status, result, logs, resetGradingState } = useGradingSocket(submissionId);
 
@@ -374,7 +375,7 @@ export default function ProblemDetail() {
               status="AI_VERIFIED"
               verifyId={submissionId || undefined}
             />
-            <ResultsPanel status={status} result={result} logs={logs} />
+            <ResultsPanel status={status} result={result} logs={logs} expertReview={expertReview} />
           </Panel>
         </PanelGroup>
       </div>

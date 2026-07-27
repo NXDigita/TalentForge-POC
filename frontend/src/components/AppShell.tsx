@@ -1,11 +1,72 @@
+import { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
+import { Bell, Check, Sparkles, X, ShieldCheck } from 'lucide-react';
+import axios from 'axios';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+
+interface NotificationItem {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: string;
+  read: boolean;
+  createdAt: string;
+}
 
 export default function AppShell() {
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
   const { user, logout, isAuthenticated } = useAuth();
+
+  // Notification Bell State
+  const [notifications, setNotifications] = useState<NotificationItem[]>([
+    {
+      id: 'notif-1',
+      userId: 'user-1',
+      title: 'Expert Verification Approved! ⭐ 5/5',
+      message: 'Your Two Sum solution was approved by Senior Architect. Badge status flipped to Expert Verified.',
+      type: 'EXPERT_APPROVAL',
+      read: false,
+      createdAt: new Date().toISOString(),
+    },
+  ]);
+  const [unreadCount, setUnreadCount] = useState<number>(1);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+
+  const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
+
+  useEffect(() => {
+    async function fetchNotifications() {
+      try {
+        const token = localStorage.getItem('talentforge_token');
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const res = await axios.get(`${apiUrl}/students/notifications`, { headers });
+        if (res.data?.notifications) {
+          setNotifications(res.data.notifications);
+          setUnreadCount(res.data.unreadCount || 0);
+        }
+      } catch (err) {
+        // Fallback state retained
+      }
+    }
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 10000);
+    return () => clearInterval(interval);
+  }, [apiUrl]);
+
+  const handleMarkAllRead = async () => {
+    try {
+      const token = localStorage.getItem('talentforge_token');
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      await axios.post(`${apiUrl}/students/notifications/read`, {}, { headers });
+    } catch (e) {
+      // Fallback update
+    }
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setUnreadCount(0);
+  };
 
   const isLinkActive = (path: string) => {
     if (path === '/') {
@@ -57,6 +118,15 @@ export default function AppShell() {
       icon: (
         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+        </svg>
+      )
+    },
+    {
+      name: 'Reviewer Portal',
+      path: '/reviewer',
+      icon: (
+        <svg className="h-5 w-5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
         </svg>
       )
     },
@@ -144,6 +214,7 @@ export default function AppShell() {
               {location.pathname === '/dashboard' && 'Student Dashboard'}
               {location.pathname.startsWith('/problems') && 'Verified Execution Environment'}
               {location.pathname === '/assessment' && 'Diagnostic Psychometric Assessment'}
+              {location.pathname === '/reviewer' && 'Expert Reviewer Evaluation Portal'}
               {location.pathname === '/profile' && 'Psychometric & Skill Profile'}
               {location.pathname === '/login' && 'Account Authentication'}
               {location.pathname === '/register' && 'Platform Onboarding'}
@@ -151,6 +222,67 @@ export default function AppShell() {
           </div>
 
           <div className="flex items-center gap-4">
+            {/* Student Notification Bell with Unread Count */}
+            <div className="relative">
+              <button
+                onClick={() => setIsNotifOpen(!isNotifOpen)}
+                className="relative rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 p-2 text-slate-500 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white transition-all shadow-sm"
+                aria-label="Student Notifications"
+              >
+                <Bell className="h-4 w-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-black text-white animate-pulse">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Notification Popover Dropdown */}
+              {isNotifOpen && (
+                <div className="absolute right-0 top-12 z-50 w-80 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-2xl space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                    <h4 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-purple-400" /> Student Notifications
+                    </h4>
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={handleMarkAllRead}
+                        className="text-[10px] font-bold text-purple-400 hover:underline flex items-center gap-1"
+                      >
+                        <Check className="h-3 w-3" /> Mark Read
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <p className="text-xs text-slate-400 text-center py-3">No notifications right now.</p>
+                    ) : (
+                      notifications.map((item) => (
+                        <div
+                          key={item.id}
+                          className={`p-3 rounded-xl border text-xs space-y-1 transition ${
+                            !item.read
+                              ? 'bg-purple-500/10 border-purple-500/30 dark:bg-purple-950/30'
+                              : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between font-bold">
+                            <span className="text-slate-900 dark:text-white flex items-center gap-1">
+                              <ShieldCheck className="h-3.5 w-3.5 text-purple-400" /> {item.title}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                            {item.message}
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Theme Toggle Button */}
             <button
               onClick={toggleTheme}

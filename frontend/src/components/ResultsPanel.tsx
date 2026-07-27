@@ -13,11 +13,19 @@ import {
   HardDrive,
   Copy,
   CheckCheck,
+  Star,
+  ShieldCheck,
 } from 'lucide-react';
 import { GradingResult, SubmissionStatus } from '../hooks/useGradingSocket';
 import ScoreRing from './ScoreRing';
 import TestCaseTable, { TestCaseResult } from './TestCaseTable';
 import LLMFeedbackPanel from './LLMFeedbackPanel';
+
+export interface ExpertReviewData {
+  score: number;
+  comment: string;
+  reviewer: string;
+}
 
 interface ResultsPanelProps {
   status: SubmissionStatus;
@@ -26,6 +34,7 @@ interface ResultsPanelProps {
   errorCode?: 'COMPILE_ERROR' | 'TIMEOUT' | 'OOM' | string | null;
   stderr?: string | null;
   testCaseResults?: TestCaseResult[];
+  expertReview?: ExpertReviewData | null;
 }
 
 export default function ResultsPanel({
@@ -35,6 +44,7 @@ export default function ResultsPanel({
   errorCode,
   stderr,
   testCaseResults,
+  expertReview,
 }: ResultsPanelProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -257,6 +267,30 @@ export default function ResultsPanel({
 
               {/* Test-Case Detailed Table */}
               <TestCaseTable testCases={activeTestCases} />
+
+              {/* Expert Human Review Card */}
+              {expertReview && (
+                <div className="rounded-2xl border border-purple-500/40 bg-gradient-to-r from-purple-950/30 via-slate-900 to-indigo-950/40 p-5 font-sans shadow-lg space-y-2.5">
+                  <div className="flex items-center justify-between border-b border-purple-500/20 pb-2">
+                    <div className="flex items-center gap-2 text-purple-300 font-bold text-xs">
+                      <ShieldCheck className="h-4 w-4 text-purple-400" /> Expert Human Review Proof
+                    </div>
+                    <div className="flex items-center gap-1 text-amber-400 font-bold text-xs">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star key={star} className={`h-3.5 w-3.5 ${star <= expertReview.score ? 'fill-amber-400' : 'text-slate-600'}`} />
+                      ))}
+                      <span className="ml-1 text-[11px] text-amber-300">{expertReview.score}/5 Stars</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-200 leading-relaxed font-medium">
+                    "{expertReview.comment || 'Approved with high distinction in algorithmic code quality.'}"
+                  </p>
+                  <div className="text-[10px] text-purple-400 font-semibold flex justify-between">
+                    <span>Evaluator: {expertReview.reviewer}</span>
+                    <span>Badge Status: EXPERT VERIFIED</span>
+                  </div>
+                </div>
+              )}
 
               {/* AI Coaching Feedback Panel */}
               <LLMFeedbackPanel

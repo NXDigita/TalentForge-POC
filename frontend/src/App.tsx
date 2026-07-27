@@ -11,6 +11,7 @@ import ProblemDetail from './pages/ProblemDetail';
 import Leaderboard from './pages/Leaderboard';
 import Submissions from './pages/Submissions';
 import Assessment from './pages/Assessment';
+import ReviewerPortal from './pages/ReviewerPortal';
 import Guide from './pages/Guide';
 import NotFound from './pages/NotFound';
 import AuthCallback from './pages/AuthCallback';
@@ -42,6 +43,7 @@ function App() {
                 <Route path="/leaderboard" element={<Leaderboard />} />
                 <Route path="/submissions" element={<Submissions />} />
                 <Route path="/assessment" element={<Assessment />} />
+                <Route path="/reviewer" element={<ReviewerPortal />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/guide" element={<Guide />} />
               </Route>

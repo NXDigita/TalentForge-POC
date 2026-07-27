@@ -6,6 +6,7 @@ import { requireAuth, AuthenticatedRequest } from '../middleware/authMiddleware'
 import { getUploadUrl } from '../services/s3';
 import { gradingQueue } from '../queues/grading';
 import { getAIAdapter } from '../services/ai/aiAdapterFactory';
+import { userNotifications } from './reviewer';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -30,6 +31,54 @@ router.get('/profile', requireAuth, async (req: AuthenticatedRequest, res) => {
     return res.json(user);
   } catch (err) {
     console.error('Profile fetch error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── GET /api/students/notifications ───────────────────────────────────────
+// Returns list of student notifications from Prisma DB and unread count
+router.get('/notifications', requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.userId || req.user?.id;
+    if (!userId) {
+      return res.json({ notifications: [], unreadCount: 0 });
+    }
+
+    const notifications = await prisma.notification.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+
+    const unreadCount = await prisma.notification.count({
+      where: { userId, read: false },
+    });
+
+    return res.json({
+      notifications,
+      unreadCount,
+    });
+  } catch (err) {
+    console.error('Notifications fetch error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── POST /api/students/notifications/read ──────────────────────────────────
+// Marks student notifications as read in Prisma DB
+router.post('/notifications/read', requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.userId || req.user?.id;
+    if (userId) {
+      await prisma.notification.updateMany({
+        where: { userId, read: false },
+        data: { read: true },
+      });
+    }
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('Notifications mark read error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
