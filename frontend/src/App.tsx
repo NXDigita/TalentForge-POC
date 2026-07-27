@@ -10,6 +10,7 @@ import ProblemBoard from './pages/ProblemBoard';
 import ProblemDetail from './pages/ProblemDetail';
 import Leaderboard from './pages/Leaderboard';
 import Submissions from './pages/Submissions';
+import Assessment from './pages/Assessment';
 import Guide from './pages/Guide';
 import NotFound from './pages/NotFound';
 import AuthCallback from './pages/AuthCallback';
@@ -40,6 +41,7 @@ function App() {
                 <Route path="/problems/:slug" element={<ProblemDetail />} />
                 <Route path="/leaderboard" element={<Leaderboard />} />
                 <Route path="/submissions" element={<Submissions />} />
+                <Route path="/assessment" element={<Assessment />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/guide" element={<Guide />} />
               </Route>

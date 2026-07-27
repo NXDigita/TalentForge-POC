@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ShieldCheck, Award, Download, Share2, CheckCircle2, ArrowLeft, ExternalLink, Copy, Check } from 'lucide-react';
+import { ShieldCheck, Award, Download, Share2, ArrowLeft, Copy, Check, Bot, Sparkles } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
 
@@ -46,6 +46,39 @@ export default function VerifyBadge() {
     }
     fetchVerification();
   }, [id, apiUrl]);
+
+  // Inject Dynamic OpenGraph (OG) and Twitter Meta Tags into Document Head
+  useEffect(() => {
+    if (data) {
+      document.title = `${data.title} - ${data.candidate.name} | TalentForge Verification`;
+
+      const setMetaTag = (property: string, content: string, isName = false) => {
+        const attr = isName ? 'name' : 'property';
+        let element = document.querySelector(`meta[${attr}="${property}"]`);
+        if (!element) {
+          element = document.createElement('meta');
+          element.setAttribute(attr, property);
+          document.head.appendChild(element);
+        }
+        element.setAttribute('content', content);
+      };
+
+      const title = `${data.title} - ${data.candidate.name}`;
+      const desc = `Verified ${data.score}/100 score on ${data.problemTitle} via TalentForge AI Platform. Cryptographic Proof: ${data.verifyId}`;
+      const image = `https://app.talentforge.in/assets/badge-verify-og.png`;
+      const url = window.location.href;
+
+      setMetaTag('og:title', title);
+      setMetaTag('og:description', desc);
+      setMetaTag('og:image', image);
+      setMetaTag('og:url', url);
+      setMetaTag('og:type', 'website');
+      setMetaTag('twitter:card', 'summary_large_image', true);
+      setMetaTag('twitter:title', title, true);
+      setMetaTag('twitter:description', desc, true);
+      setMetaTag('twitter:image', image, true);
+    }
+  }, [data]);
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(window.location.href);
@@ -100,6 +133,8 @@ export default function VerifyBadge() {
     year: 'numeric',
   });
 
+  const isExpertVerified = data.status === 'EXPERT_VERIFIED' || data.status === 'Expert Verified';
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans p-6 sm:p-12 flex flex-col justify-between">
       <div className="max-w-3xl mx-auto w-full space-y-8">
@@ -125,9 +160,12 @@ export default function VerifyBadge() {
           {/* Certificate Header Badge */}
           <div className="text-center space-y-2">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/40 shadow-inner">
-              <Award className="h-8 w-8" />
+              <Award className="h-8 w-8 text-amber-300" />
             </div>
-            <h2 className="text-2xl font-black tracking-tight text-white">{data.title}</h2>
+            <h2 className="text-2xl font-black tracking-tight text-white flex items-center justify-center gap-2">
+              {data.title}
+              <Sparkles className="h-5 w-5 text-amber-400" />
+            </h2>
             <p className="text-xs font-semibold text-purple-300/80 uppercase tracking-widest">
               Verified Technical Competency Certificate
             </p>
@@ -138,13 +176,25 @@ export default function VerifyBadge() {
             <div className="space-y-1">
               <span className="text-slate-500 font-semibold block uppercase tracking-wider text-[10px]">Candidate</span>
               <span className="font-bold text-white text-base">{data.candidate.name}</span>
-              <span className="text-[11px] text-slate-400 block uppercase font-medium">Domain: {data.candidate.domain.toUpperCase()}</span>
+              <span className="text-[11px] text-slate-400 block uppercase font-medium">Domain: {data.candidate.domain?.toUpperCase() || 'ENGINEERING'}</span>
             </div>
 
             <div className="space-y-1 sm:text-right">
               <span className="text-slate-500 font-semibold block uppercase tracking-wider text-[10px]">Verified Score</span>
               <span className="font-extrabold text-emerald-400 text-xl tracking-tight">{data.score} / 100</span>
-              <span className="text-[11px] text-emerald-300 block font-medium">Status: {data.status}</span>
+
+              {/* Dynamic Status Chip */}
+              <div className="pt-1 flex sm:justify-end">
+                {isExpertVerified ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-500/20 px-3 py-0.5 text-xs font-extrabold text-purple-300 border border-purple-500/40">
+                    <ShieldCheck className="h-3.5 w-3.5 text-purple-400" /> Expert Verified
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-3 py-0.5 text-xs font-extrabold text-emerald-300 border border-emerald-500/40">
+                    <Bot className="h-3.5 w-3.5 text-emerald-400" /> AI Verified
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="space-y-1 pt-2 border-t border-slate-800/60 sm:col-span-2 flex flex-wrap justify-between items-center text-[11px] text-slate-400">
@@ -157,7 +207,7 @@ export default function VerifyBadge() {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-2xl bg-slate-950 p-4 border border-slate-800 text-xs">
             <div className="space-y-1">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Verification UUID</span>
-              <code className="font-mono text-purple-300 text-xs bg-purple-950/40 px-2 py-1 rounded border border-purple-800/40">
+              <code className="font-mono text-purple-300 text-xs bg-purple-950/40 px-2.5 py-1 rounded border border-purple-800/40">
                 {data.verifyId}
               </code>
             </div>

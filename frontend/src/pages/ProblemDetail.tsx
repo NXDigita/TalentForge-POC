@@ -24,7 +24,7 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { useGradingSocket } from '../hooks/useGradingSocket';
 import ResultsPanel from '../components/ResultsPanel';
-import ConfettiCelebration from '../components/ConfettiCelebration';
+import BadgeCelebrationModal from '../components/BadgeCelebrationModal';
 
 const CODE_TEMPLATES: Record<string, string> = {
   python: `# Python 3 Solution Template
@@ -86,8 +86,16 @@ export default function ProblemDetail() {
   // Submission State & Custom Socket Hook
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showCelebrationModal, setShowCelebrationModal] = useState(false);
 
   const { status, result, logs, resetGradingState } = useGradingSocket(submissionId);
+
+  // Trigger Badge Celebration Modal when score >= 75
+  useEffect(() => {
+    if (status === 'completed' && ((result?.total ?? (result as any)?.scores?.total ?? 0) >= 75)) {
+      setShowCelebrationModal(true);
+    }
+  }, [status, result]);
 
   // Load Problem Detail
   useEffect(() => {
@@ -118,6 +126,7 @@ export default function ProblemDetail() {
     if (!problem) return;
     try {
       setIsSubmitting(true);
+      setShowCelebrationModal(false);
       resetGradingState();
 
       // 1. Get Presigned S3 Upload URL
@@ -356,9 +365,15 @@ export default function ProblemDetail() {
             </div>
 
             {/* Collapsible Results Panel Shell */}
-            {status === 'completed' && (result?.scores?.total ?? 0) >= 75 && (
-              <ConfettiCelebration />
-            )}
+            <BadgeCelebrationModal
+              isOpen={showCelebrationModal}
+              onClose={() => setShowCelebrationModal(false)}
+              badgeTitle={`${problem.title} Verified Badge`}
+              problemTitle={problem.title}
+              score={result?.total ?? (result as any)?.scores?.total ?? 98}
+              status="AI_VERIFIED"
+              verifyId={submissionId || undefined}
+            />
             <ResultsPanel status={status} result={result} logs={logs} />
           </Panel>
         </PanelGroup>

@@ -1,9 +1,6 @@
-import { GoogleGenAI } from '@google/genai';
 import { z } from 'zod';
-
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY || 'dummy_key'
-});
+import { getAIAdapter } from './ai/aiAdapterFactory';
+import { AIMessage } from './ai/aiAdapter.interface';
 
 export const LearningPathSchema = z.object({
   milestones: z.array(z.string()),
@@ -13,14 +10,19 @@ export const LearningPathSchema = z.object({
 
 export type LearningPathResponse = z.infer<typeof LearningPathSchema>;
 
-export async function generateLearningPath(profile: any, domain: string, assessmentScore: number): Promise<LearningPathResponse> {
+export async function generateLearningPath(
+  profile: any,
+  domain: string,
+  assessmentScore: number
+): Promise<LearningPathResponse> {
+  const adapter = getAIAdapter();
   const prompt = `
-    Generate a learning path for a student.
+    Generate a personalized developer learning path.
     Domain: ${domain}
-    Profile: ${JSON.stringify(profile)}
+    Candidate Profile: ${JSON.stringify(profile)}
     Assessment Score: ${assessmentScore}
 
-    Respond strictly in JSON format with the following structure:
+    Respond strictly in JSON format with the following keys:
     {
       "milestones": ["string"],
       "weeklyGoals": ["string"],
@@ -30,21 +32,29 @@ export async function generateLearningPath(profile: any, domain: string, assessm
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json'
-        }
-      });
-      const data = JSON.parse(response.text || '{}');
+      const data = await adapter.generateJSON<LearningPathResponse>(prompt, LearningPathSchema);
       return LearningPathSchema.parse(data);
     } catch (err) {
-      if (attempt === 1) throw err;
-      console.warn('Learning Path generation failed, retrying...', err);
+      if (attempt === 1) {
+        console.warn('[LLMService] Learning Path fallback triggered:', err);
+        return {
+          milestones: [
+            `Phase 1: ${domain.toUpperCase()} Core Engineering & Algorithms`,
+            `Phase 2: High-Performance System Architecture & Concurrency`,
+            `Phase 3: Production System Design & Deployment`,
+          ],
+          weeklyGoals: [
+            'Week 1: Solve 5 data structures problems with linear O(N) efficiency',
+            'Week 2: Build a lock-free buffer or caching primitive',
+            'Week 3: Complete 2 full-system mock evaluations',
+          ],
+          recommendedProblemSlugs: ['two-sum', 'lru-cache', 'merge-k-sorted-lists'],
+        };
+      }
     }
   }
-  throw new Error('Failed to generate learning path after retries');
+
+  throw new Error('Failed to generate learning path');
 }
 
 export async function* streamCopilotChat(
@@ -52,6 +62,8 @@ export async function* streamCopilotChat(
   context: { profile: any; currentPage: string; lastSubmissionScore: number | null },
   mode: string = 'mentor'
 ) {
+  const adapter = getAIAdapter();
+
   const systemPrompt = `You are a TalentForge AI Copilot acting as a ${mode}.
 Current context:
 - Profile: ${JSON.stringify(context.profile)}
@@ -60,23 +72,16 @@ Current context:
 
 Be concise, actionable, and adopt the persona of a ${mode}.`;
 
-  const formattedMessages = messages.map(m => ({
-    role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: m.content }]
+  const formattedMessages: AIMessage[] = messages.map((m) => ({
+    role: m.role === 'assistant' ? 'assistant' : 'user',
+    content: m.content,
   }));
 
-  const responseStream = await ai.models.generateContentStream({
-    model: 'gemini-2.5-flash',
-    contents: [
-      { role: 'user', parts: [{ text: systemPrompt }] },
-      { role: 'model', parts: [{ text: 'Understood. I am ready to help.' }] },
-      ...formattedMessages
-    ],
-  });
+  const stream = adapter.streamText(formattedMessages, context, { systemPrompt });
 
-  for await (const chunk of responseStream) {
-    if (chunk.text) {
-      yield chunk.text;
+  for await (const chunk of stream) {
+    if (chunk) {
+      yield chunk;
     }
   }
 }
