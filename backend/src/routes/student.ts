@@ -327,7 +327,7 @@ router.post(
       });
 
       // Enqueue grading job
-      await gradingQueue.add('grade', {
+      await gradingQueue.add('grade' as any, {
         submissionId: submission.id,
         userId,
         problemId,

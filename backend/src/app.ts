@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import * as Sentry from '@sentry/node';
 import cors from 'cors';
 import express from 'express';
@@ -12,6 +13,8 @@ import authRoutes from './routes/auth';
 import studentRoutes from './routes/student';
 import internalRoutes from './routes/internal';
 import verifyRoutes from './routes/verify';
+import learningPathRoutes from './routes/learningPath';
+import copilotRoutes from './routes/copilot';
 
 // Sentry Observability Setup
 if (process.env.SENTRY_DSN) {
@@ -40,6 +43,8 @@ app.get('/', (req, res) => {
 app.use('/api/auth',     authRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/verify',   verifyRoutes);
+app.use('/api/learning-path', learningPathRoutes);
+app.use('/api/copilot',  copilotRoutes);
 app.use('/internal',     internalRoutes);   // worker-only internal endpoints
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 

@@ -89,28 +89,7 @@ function bestFit(ns: number[], ts: number[]): { cls: BigOClass; r2Value: number 
   return best;
 }
 
-/**
- * Given n-values and time-values, return the best-fitting BigO class and its R².
- */
-function bestFit(ns: number[], ts: number[]): { cls: BigOClass; r2Value: number } {
-  const candidates: Array<{ cls: BigOClass; xs: number[] }> = [
-    { cls: 'O(1)',       xs: ns.map(() => 1) },
-    { cls: 'O(log n)',   xs: ns.map((n) => Math.log2(safe(n))) },
-    { cls: 'O(n)',       xs: ns.map((n) => n) },
-    { cls: 'O(n log n)', xs: ns.map((n) => n * Math.log2(safe(n))) },
-    { cls: 'O(n^2)',     xs: ns.map((n) => n * n) },
-    { cls: 'O(n^3)',     xs: ns.map((n) => n * n * n) },
-  ];
 
-  let best: { cls: BigOClass; r2Value: number } = { cls: 'unknown', r2Value: -1 };
-  for (const { cls, xs } of candidates) {
-    const score = r2(xs, ts);
-    if (score > best.r2Value) {
-      best = { cls, r2Value: score };
-    }
-  }
-  return best;
-}
 
 /**
  * Classifies Big-O complexity using ratio fitting across scaled inputs (n, 2n, 4n).
