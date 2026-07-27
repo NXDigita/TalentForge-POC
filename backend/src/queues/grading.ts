@@ -14,7 +14,7 @@ export interface GradeJobData {
  * Workers consume from this queue and emit socket events back on completion.
  */
 export const gradingQueue = new Queue<GradeJobData>('grading', {
-  connection: redis,
+  connection: redis as any,
   defaultJobOptions: {
     attempts: 2,           // retry once on infra failures only
     backoff: {
