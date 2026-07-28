@@ -4,6 +4,7 @@ import { Bell, Check, Sparkles, X, ShieldCheck } from 'lucide-react';
 import axios from 'axios';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import OnboardingTour from './OnboardingTour';
 
 interface NotificationItem {
   id: string;
@@ -353,6 +354,7 @@ export default function AppShell() {
           </div>
         </main>
       </div>
+      <OnboardingTour />
     </div>
   );
 }

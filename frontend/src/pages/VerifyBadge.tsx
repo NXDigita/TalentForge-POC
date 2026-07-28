@@ -212,7 +212,19 @@ export default function VerifyBadge() {
               </code>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  const shareText = `I just earned the ${data.title} on TalentForge with a verified score of ${data.score}/100! 🚀 Verified technical proof.`;
+                  const linkedinUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(window.location.href)}`;
+                  window.open(linkedinUrl, '_blank', 'width=600,height=600');
+                }}
+                className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-500"
+              >
+                <Share2 className="h-4 w-4" /> Share on LinkedIn
+              </button>
+
               <a
                 href={pdfDownloadUrl}
                 target="_blank"
@@ -221,25 +233,15 @@ export default function VerifyBadge() {
               >
                 <Download className="h-4 w-4" /> Download PDF Certificate
               </a>
+
+              <button
+                onClick={handleCopyLink}
+                className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-xs font-semibold text-slate-300 transition-all hover:bg-slate-800"
+              >
+                {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                {copied ? 'Copied Link!' : 'Copy Verification URL'}
+              </button>
             </div>
-          </div>
-
-          {/* Share Actions */}
-          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-            <button
-              onClick={handleCopyLink}
-              className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950 px-4 py-2 text-xs font-semibold text-slate-300 transition-all hover:bg-slate-800 hover:text-white"
-            >
-              {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-              {copied ? 'Copied URL!' : 'Copy Public Link'}
-            </button>
-
-            <button
-              onClick={handleLinkedInShare}
-              className="flex items-center gap-2 rounded-xl border border-blue-500/30 bg-blue-950/30 px-4 py-2 text-xs font-semibold text-blue-300 transition-all hover:bg-blue-600 hover:text-white"
-            >
-              <Share2 className="h-4 w-4" /> Share on LinkedIn
-            </button>
           </div>
         </div>
       </div>

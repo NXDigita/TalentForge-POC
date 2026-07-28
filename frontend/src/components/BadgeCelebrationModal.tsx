@@ -91,6 +91,18 @@ export default function BadgeCelebrationModal({
 
         {/* Action Buttons */}
         <div className="space-y-2.5 pt-2">
+          <button
+            type="button"
+            onClick={() => {
+              const fullVerifyUrl = `${window.location.origin}/verify/${finalVerifyId}`;
+              const linkedinUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(fullVerifyUrl)}`;
+              window.open(linkedinUrl, '_blank', 'width=600,height=600');
+            }}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-xs font-bold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-500 active:scale-95"
+          >
+            <Sparkles className="h-4 w-4 text-blue-200" /> Share Badge on LinkedIn
+          </button>
+
           <div className="flex flex-col sm:flex-row gap-2.5">
             <Link
               to={verifyPageUrl}
