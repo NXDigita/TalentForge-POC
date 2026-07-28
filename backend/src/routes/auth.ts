@@ -111,10 +111,10 @@ router.post('/register', validate(registerSchema), async (req, res) => {
       },
     });
 
-    const { accessToken, refreshToken } = await issueTokens(user.id);
+    const { accessToken, refreshToken } = await issueTokens(user.id, user.role);
 
     return res.status(201).json({
-      user: { id: user.id, email: user.email, name: user.name, domain: user.domain, tier: user.tier, xp: user.xp },
+      user: { id: user.id, email: user.email, name: user.name, domain: user.domain, role: user.role, tier: user.tier, xp: user.xp },
       accessToken,
       refreshToken,
     });
@@ -138,10 +138,10 @@ router.post('/login', validate(loginSchema), async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    const { accessToken, refreshToken } = await issueTokens(user.id);
+    const { accessToken, refreshToken } = await issueTokens(user.id, user.role);
 
     return res.status(200).json({
-      user: { id: user.id, email: user.email, name: user.name, domain: user.domain, tier: user.tier, xp: user.xp },
+      user: { id: user.id, email: user.email, name: user.name, domain: user.domain, role: user.role, tier: user.tier, xp: user.xp },
       accessToken,
       refreshToken,
     });
@@ -203,7 +203,7 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res) => {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, name: true, domain: true, tier: true, xp: true, walletAddress: true },
+      select: { id: true, email: true, name: true, domain: true, role: true, tier: true, xp: true, walletAddress: true },
     });
 
     if (!user) {

@@ -19,6 +19,7 @@ import NotFound from './pages/NotFound';
 import AuthCallback from './pages/AuthCallback';
 import VerifyBadge from './pages/VerifyBadge';
 import RequireAuth from './components/RequireAuth';
+import RequireRole from './components/RequireRole';
 import ErrorBoundary from './components/ErrorBoundary';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -30,26 +31,42 @@ function App() {
         <AuthProvider>
           <Toaster position="top-right" richColors closeButton />
           <Routes>
+            {/* Public Unrestricted Routes */}
             <Route path="/auth-callback" element={<AuthCallback />} />
             <Route path="/verify/:id" element={<VerifyBadge />} />
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
 
-            {/* Protected Workspace Layout */}
+            {/* Protected Workspace Layout (Require Authentication) */}
             <Route element={<RequireAuth />}>
               <Route element={<AppShell />}>
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/problems" element={<ProblemBoard />} />
-                <Route path="/problems/:slug" element={<ProblemDetail />} />
-                <Route path="/leaderboard" element={<Leaderboard />} />
-                <Route path="/submissions" element={<Submissions />} />
-                <Route path="/assessment" element={<Assessment />} />
-                <Route path="/reviewer" element={<ReviewerPortal />} />
-                <Route path="/discover" element={<EmployerDiscover />} />
-                <Route path="/shortlist" element={<EmployerShortlist />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/guide" element={<Guide />} />
+                {/* Candidate Student Routes */}
+                <Route element={<RequireRole allowedRoles={['STUDENT']} />}>
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/problems" element={<ProblemBoard />} />
+                  <Route path="/problems/:slug" element={<ProblemDetail />} />
+                  <Route path="/assessment" element={<Assessment />} />
+                  <Route path="/submissions" element={<Submissions />} />
+                </Route>
+
+                {/* Expert Reviewer Routes */}
+                <Route element={<RequireRole allowedRoles={['REVIEWER']} />}>
+                  <Route path="/reviewer" element={<ReviewerPortal />} />
+                </Route>
+
+                {/* Employer Recruiter Routes */}
+                <Route element={<RequireRole allowedRoles={['EMPLOYER']} />}>
+                  <Route path="/discover" element={<EmployerDiscover />} />
+                  <Route path="/shortlist" element={<EmployerShortlist />} />
+                </Route>
+
+                {/* Shared Multi-Role Routes */}
+                <Route element={<RequireRole allowedRoles={['STUDENT', 'REVIEWER', 'EMPLOYER', 'ADMIN']} />}>
+                  <Route path="/leaderboard" element={<Leaderboard />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/guide" element={<Guide />} />
+                </Route>
               </Route>
             </Route>
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, Outlet, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Bell, Check, Sparkles, X, ShieldCheck } from 'lucide-react';
 import axios from 'axios';
 import { useTheme } from '../context/ThemeContext';
@@ -18,8 +18,10 @@ interface NotificationItem {
 
 export default function AppShell() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
-  const { user, logout, isAuthenticated } = useAuth();
+  const { user, logout, isAuthenticated, switchRole } = useAuth();
+  const userRole = (user?.role || 'STUDENT').toUpperCase();
 
   // Notification Bell State
   const [notifications, setNotifications] = useState<NotificationItem[]>([
@@ -76,10 +78,11 @@ export default function AppShell() {
     return location.pathname.startsWith(path);
   };
 
-  const navItems = [
+  const allNavItems = [
     {
       name: 'Dashboard',
       path: '/dashboard',
+      roles: ['STUDENT', 'ADMIN'],
       icon: (
         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
@@ -89,6 +92,7 @@ export default function AppShell() {
     {
       name: 'Problems',
       path: '/problems',
+      roles: ['STUDENT', 'ADMIN'],
       icon: (
         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
@@ -96,26 +100,9 @@ export default function AppShell() {
       )
     },
     {
-      name: 'Leaderboard',
-      path: '/leaderboard',
-      icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-        </svg>
-      )
-    },
-    {
-      name: 'Submissions',
-      path: '/submissions',
-      icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      )
-    },
-    {
       name: 'Assessment',
       path: '/assessment',
+      roles: ['STUDENT', 'ADMIN'],
       icon: (
         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
@@ -123,8 +110,19 @@ export default function AppShell() {
       )
     },
     {
+      name: 'Submissions',
+      path: '/submissions',
+      roles: ['STUDENT', 'ADMIN'],
+      icon: (
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      )
+    },
+    {
       name: 'Reviewer Portal',
       path: '/reviewer',
+      roles: ['REVIEWER', 'ADMIN'],
       icon: (
         <svg className="h-5 w-5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
@@ -134,6 +132,7 @@ export default function AppShell() {
     {
       name: 'Discover Talent',
       path: '/discover',
+      roles: ['EMPLOYER', 'ADMIN'],
       icon: (
         <svg className="h-5 w-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -143,6 +142,7 @@ export default function AppShell() {
     {
       name: 'Shortlist',
       path: '/shortlist',
+      roles: ['EMPLOYER', 'ADMIN'],
       icon: (
         <svg className="h-5 w-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
@@ -150,8 +150,19 @@ export default function AppShell() {
       )
     },
     {
+      name: 'Leaderboard',
+      path: '/leaderboard',
+      roles: ['STUDENT', 'REVIEWER', 'EMPLOYER', 'ADMIN'],
+      icon: (
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+        </svg>
+      )
+    },
+    {
       name: 'Profile',
       path: '/profile',
+      roles: ['STUDENT', 'REVIEWER', 'EMPLOYER', 'ADMIN'],
       icon: (
         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -161,6 +172,7 @@ export default function AppShell() {
     {
       name: 'Guide',
       path: '/guide',
+      roles: ['STUDENT', 'REVIEWER', 'EMPLOYER', 'ADMIN'],
       icon: (
         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -168,6 +180,8 @@ export default function AppShell() {
       )
     }
   ];
+
+  const navItems = allNavItems.filter((item) => userRole === 'ADMIN' || item.roles.includes(userRole));
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 transition-colors duration-200">
@@ -209,16 +223,46 @@ export default function AppShell() {
           })}
         </nav>
 
-        {/* Sidebar Footer / User Widget */}
-        <div className="border-t border-slate-100 dark:border-slate-800 p-4">
+        {/* Sidebar Footer / User & Role Widget */}
+        <div className="border-t border-slate-100 dark:border-slate-800 p-4 space-y-2">
           <div className="flex items-center gap-3 rounded-xl p-2 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-            <div className="h-9 w-9 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-semibold text-slate-600 dark:text-slate-300 text-sm border border-slate-300/40">
+            <div className="h-9 w-9 rounded-full bg-purple-600/20 text-purple-400 font-bold flex items-center justify-center text-sm border border-purple-500/30">
               {user?.name?.[0]?.toUpperCase() || 'U'}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 truncate">{user?.name || 'Anonymous User'}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 truncate">{user?.name || 'Anonymous User'}</p>
+                <span className="rounded bg-purple-500/20 px-1.5 py-0.5 text-[9px] font-black text-purple-300 border border-purple-500/30">
+                  {userRole}
+                </span>
+              </div>
               <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{user?.domain?.toUpperCase() || 'CSE'} • {user?.tier || 'Explorer'}</p>
             </div>
+          </div>
+
+          {/* Dev Mode Role Workflow Switcher */}
+          <div className="pt-1 flex items-center justify-between text-[10px] text-slate-400 border-t border-slate-100 dark:border-slate-800/60">
+            <span>Role Workflow:</span>
+            <select
+              value={userRole}
+              onChange={(e) => {
+                const newRole = e.target.value;
+                switchRole(newRole);
+                if (newRole === 'REVIEWER') {
+                  navigate('/reviewer');
+                } else if (newRole === 'EMPLOYER') {
+                  navigate('/discover');
+                } else {
+                  navigate('/dashboard');
+                }
+              }}
+              className="bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-200 rounded px-1.5 py-0.5 font-mono text-[10px] border border-slate-700 focus:outline-none"
+            >
+              <option value="STUDENT">Student Candidate</option>
+              <option value="REVIEWER">Expert Reviewer</option>
+              <option value="EMPLOYER">Employer Recruiter</option>
+              <option value="ADMIN">Admin Manager</option>
+            </select>
           </div>
         </div>
       </aside>
@@ -235,6 +279,8 @@ export default function AppShell() {
               {location.pathname === '/assessment' && 'Diagnostic Psychometric Assessment'}
               {location.pathname === '/reviewer' && 'Expert Reviewer Evaluation Portal'}
               {location.pathname === '/profile' && 'Psychometric & Skill Profile'}
+              {location.pathname === '/discover' && 'Employer Recruiter Discover Portal'}
+              {location.pathname === '/shortlist' && 'Employer Talent Pipeline & Shortlist'}
               {location.pathname === '/login' && 'Account Authentication'}
               {location.pathname === '/register' && 'Platform Onboarding'}
             </h2>

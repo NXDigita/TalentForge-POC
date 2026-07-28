@@ -274,6 +274,31 @@ export async function getProblemBySlug(slug: string): Promise<Problem> {
   }
 }
 
+export async function generateAIProblem(topic: string, difficulty: string, domain: string): Promise<Problem> {
+  try {
+    const response = await api.post('/students/problems/generate-ai', {
+      topic,
+      difficulty,
+      domain,
+    });
+    return response.data.problem;
+  } catch (err) {
+    console.warn('AI Problem Generation endpoint unavailable, returning simulated AI problem');
+    const slug = `ai-${topic.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now()}`;
+    return {
+      id: 'ai-gen-' + Date.now(),
+      title: `AI Challenge: ${topic}`,
+      slug,
+      tier: (difficulty as any) || 'Builder',
+      domain: (domain as any) || 'cse',
+      reward: difficulty === 'Architect' ? 250 : 150,
+      description: `### AI Generated Problem: ${topic}\n\nImplement an optimized algorithmic solution for **${topic}** under high performance constraints.\n\n### Input Format\nInteger input \`N\`.\n\n### Output Format\nReturn calculated metric.`,
+      publicTestCases: [{ input: '5', expected: '15' }],
+      createdAt: new Date().toISOString(),
+    };
+  }
+}
+
 export async function getPresignedUrl(problemId: string, language: string): Promise<{ uploadUrl: string; s3Key: string }> {
   try {
     const response = await api.get(`/students/problems/${problemId}/presigned`, {

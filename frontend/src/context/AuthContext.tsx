@@ -2,11 +2,12 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import api from '../services/api';
 
-interface User {
+export interface User {
   id: string;
   email: string;
   name: string;
   domain: string;
+  role?: 'STUDENT' | 'REVIEWER' | 'EMPLOYER' | 'ADMIN' | string;
   tier: string;
   xp: number;
   isAnonymized?: boolean;
@@ -22,6 +23,7 @@ interface AuthContextType {
   registerUser: (name: string, email: string, domain: 'cse' | 'ece', password: string) => Promise<void>;
   logout: () => Promise<void>;
   setSession: (accessToken: string, refreshToken: string) => Promise<void>;
+  switchRole: (newRole: string) => void;
 }
 
 const MOCK_USER: User = {
@@ -29,11 +31,20 @@ const MOCK_USER: User = {
   email: 'tkarthikeyan@gmail.com',
   name: 'Karthikeyan',
   domain: 'cse',
+  role: 'STUDENT',
   tier: 'Explorer',
   xp: 150,
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+function inferRoleFromEmail(email: string): string {
+  const lower = email.toLowerCase();
+  if (lower.includes('reviewer')) return 'REVIEWER';
+  if (lower.includes('employer') || lower.includes('recruiter') || lower.includes('company')) return 'EMPLOYER';
+  if (lower.includes('admin')) return 'ADMIN';
+  return 'STUDENT';
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -47,14 +58,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const response = await api.get('/auth/me');
-      setUser(response.data.user);
-      toast.success(`Authenticated as ${response.data.user.name}`);
+      const u = response.data.user;
+      const role = u.role || inferRoleFromEmail(u.email);
+      setUser({ ...u, role });
+      toast.success(`Authenticated as ${u.name}`);
     } catch (err) {
       console.warn('Backend unavailable, using mock user profile');
+      const storedEmail = localStorage.getItem('userEmail') || MOCK_USER.email;
+      const role = inferRoleFromEmail(storedEmail);
       const u = {
         ...MOCK_USER,
-        email: localStorage.getItem('userEmail') || MOCK_USER.email,
-        name: (localStorage.getItem('userEmail') || MOCK_USER.email).split('@')[0],
+        email: storedEmail,
+        name: storedEmail.split('@')[0],
+        role,
       };
       setUser(u);
       toast.info(`Session active (${u.name})`);
@@ -74,20 +90,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const response = await api.post('/auth/login', { email, password });
       const { accessToken, refreshToken, user: loggedUser } = response.data;
+      const role = loggedUser.role || inferRoleFromEmail(loggedUser.email);
+      const fullUser = { ...loggedUser, role };
+
       localStorage.setItem('accessToken', accessToken);
       localStorage.setItem('refreshToken', refreshToken);
       localStorage.setItem('userEmail', loggedUser.email);
       setAccessToken(accessToken);
-      setUser(loggedUser);
+      setUser(fullUser);
       toast.success(`Welcome back, ${loggedUser.name}!`);
     } catch (err: any) {
       console.warn('Login API call failed, falling back to mock authentication mode:', err?.message);
       const mockToken = 'mock_jwt_access_token_' + Date.now();
+      const userEmail = email || 'tkarthikeyan@gmail.com';
+      const role = inferRoleFromEmail(userEmail);
       const mockUser: User = {
         id: 'mock-' + Math.random().toString(36).substring(7),
-        email: email || 'tkarthikeyan@gmail.com',
-        name: email ? email.split('@')[0] : 'Karthikeyan',
+        email: userEmail,
+        name: userEmail ? userEmail.split('@')[0] : 'Karthikeyan',
         domain: 'cse',
+        role,
         tier: 'Explorer',
         xp: 150,
       };
@@ -97,7 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('userEmail', mockUser.email);
       setAccessToken(mockToken);
       setUser(mockUser);
-      toast.success(`Signed in as ${mockUser.name} (Dev Mode)`);
+      toast.success(`Signed in as ${mockUser.name} (${role} Mode)`);
     }
   };
 
@@ -105,19 +127,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const response = await api.post('/auth/register', { name, email, domain, password });
       const { accessToken, refreshToken, user: registeredUser } = response.data;
+      const role = registeredUser.role || inferRoleFromEmail(registeredUser.email);
+      const fullUser = { ...registeredUser, role };
+
       localStorage.setItem('accessToken', accessToken);
       localStorage.setItem('refreshToken', refreshToken);
       localStorage.setItem('userEmail', registeredUser.email);
       setAccessToken(accessToken);
-      setUser(registeredUser);
+      setUser(fullUser);
     } catch (err: any) {
       console.warn('Registration API call failed, falling back to mock registration mode:', err?.message);
       const mockToken = 'mock_jwt_access_token_' + Date.now();
+      const role = inferRoleFromEmail(email);
       const mockUser: User = {
         id: 'mock-' + Math.random().toString(36).substring(7),
         email,
         name,
         domain,
+        role,
         tier: 'Explorer',
         xp: 0,
       };
@@ -149,10 +176,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (token.startsWith('mock_')) {
       const storedEmail = localStorage.getItem('userEmail') || MOCK_USER.email;
+      const role = inferRoleFromEmail(storedEmail);
       setUser({
         ...MOCK_USER,
         email: storedEmail,
         name: storedEmail.split('@')[0],
+        role,
       });
       setIsLoading(false);
       return;
@@ -160,14 +189,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const response = await api.get('/auth/me');
-      setUser(response.data.user);
+      const u = response.data.user;
+      const role = u.role || inferRoleFromEmail(u.email);
+      setUser({ ...u, role });
     } catch (err) {
       console.warn('Auto login check failed, using mock profile fallback');
       const storedEmail = localStorage.getItem('userEmail') || MOCK_USER.email;
+      const role = inferRoleFromEmail(storedEmail);
       setUser({
         ...MOCK_USER,
         email: storedEmail,
         name: storedEmail.split('@')[0],
+        role,
       });
     } finally {
       setIsLoading(false);
@@ -179,6 +212,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [accessToken]);
 
   const isAuthenticated = !!user;
+
+  const switchRole = (newRole: string) => {
+    if (user) {
+      const updated = { ...user, role: newRole };
+      setUser(updated);
+      toast.info(`Switched Active Workflow Role to ${newRole}`);
+    }
+  };
 
   return (
     <AuthContext.Provider
@@ -192,6 +233,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         registerUser,
         logout,
         setSession,
+        switchRole,
       }}
     >
       {children}

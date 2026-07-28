@@ -31,7 +31,15 @@ export default function Login() {
       setApiError(null);
       setIsSubmitting(true);
       await login(data.email, data.password);
-      navigate(from, { replace: true });
+
+      const emailLower = data.email.toLowerCase();
+      let targetPath = '/dashboard';
+      if (emailLower.includes('employer') || emailLower.includes('recruiter') || emailLower.includes('company')) {
+        targetPath = '/discover';
+      } else if (emailLower.includes('reviewer')) {
+        targetPath = '/reviewer';
+      }
+      navigate(targetPath, { replace: true });
     } catch (err: any) {
       console.error(err);
       setApiError(err.response?.data?.error || 'Invalid credentials or connection error');

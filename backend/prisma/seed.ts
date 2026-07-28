@@ -49,6 +49,38 @@ async function main() {
     },
   });
 
+  console.log('💼 Seeding Employer Recruiter Account...');
+  const employerPassword = await bcrypt.hash('password123', 12);
+  await prisma.user.upsert({
+    where: { email: 'employer@talentforge.in' },
+    update: { password: employerPassword, role: 'EMPLOYER' },
+    create: {
+      email: 'employer@talentforge.in',
+      password: employerPassword,
+      name: 'Enterprise Tech Recruiter (Stripe)',
+      domain: 'cse',
+      role: 'EMPLOYER',
+      tier: 'Enterprise',
+      xp: 10000,
+    },
+  });
+
+  console.log('👑 Seeding Admin Account...');
+  const adminPassword = await bcrypt.hash('Admin123!', 12);
+  await prisma.user.upsert({
+    where: { email: 'admin@talentforge.in' },
+    update: { password: adminPassword, role: 'ADMIN' },
+    create: {
+      email: 'admin@talentforge.in',
+      password: adminPassword,
+      name: 'System Admin Manager',
+      domain: 'cse',
+      role: 'ADMIN',
+      tier: 'Master',
+      xp: 99999,
+    },
+  });
+
   console.log('🌱 Seeding 8 comprehensive problems (incl. Flagship Load Balancer)...');
 
   // ─── Problem 1: Two Sum (Easy - Explorer) ──────────────────────────────────
