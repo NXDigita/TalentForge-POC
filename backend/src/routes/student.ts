@@ -302,6 +302,83 @@ router.get('/badges', requireAuth, async (req: AuthenticatedRequest, res) => {
   }
 });
 
+// ─── AI Problem Generator Types ─────────────────────────────────────────────
+type GeneratedProblem = {
+  title: string;
+  slug: string;
+  tier: string;
+  domain: string;
+  reward: number;
+  description: string;
+  publicTestCases: Array<{ input: string; expected: string }>;
+  hiddenTestCases: Array<{ input: string; expected: string }>;
+};
+
+function buildAIFallbackProblem(topic: string, difficulty: string, domain: string): GeneratedProblem {
+  const slug = `ai-${topic.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now()}`;
+  const reward = difficulty === 'Architect' ? 250 : difficulty === 'Builder' ? 150 : 100;
+  const domainLabel = domain === 'ece' ? 'Embedded Systems / Signal Processing' : 'Computer Science / Systems Engineering';
+
+  return {
+    title: `${topic}`,
+    slug,
+    tier: difficulty,
+    domain,
+    reward,
+    description: [
+      `## Challenge: ${topic}`,
+      '',
+      `**Domain**: ${domainLabel} | **Tier**: ${difficulty} | **Reward**: ${reward} XP`,
+      '',
+      '### Problem Statement',
+      `You are building a high-performance component for **${topic}**. Design an optimal algorithmic solution that handles concurrent requests efficiently under real-world load conditions.`,
+      '',
+      '### Requirements',
+      `- Implement the core logic for **${topic}** from scratch`,
+      '- Must support concurrent operation without race conditions',
+      '- Time complexity: O(log N) or better for all operations',
+      '- Space complexity: O(N) maximum',
+      '',
+      '### Input Format',
+      'First line: integer `N` — number of operations',
+      'Each of the next `N` lines contains: `operation_type args...`',
+      '',
+      '### Output Format',
+      'For each query operation, print the result on a new line.',
+      'Print `null` if the key/resource does not exist.',
+      '',
+      '### Constraints',
+      '- 1 ≤ N ≤ 10^5',
+      '- All string keys have length ≤ 100',
+      '- All integer values fit in 32-bit signed integer',
+      '',
+      '### Example',
+      '```',
+      'Input:',
+      '5',
+      'PUT key1 100',
+      'PUT key2 200',
+      'GET key1',
+      'DELETE key1',
+      'GET key1',
+      '',
+      'Output:',
+      '100',
+      'null',
+      '```',
+    ].join('\n'),
+    publicTestCases: [
+      { input: '3\nPUT k1 10\nGET k1\nGET k2', expected: '10\nnull' },
+      { input: '4\nPUT a 1\nPUT b 2\nDELETE a\nGET a', expected: 'null' },
+    ],
+    hiddenTestCases: [
+      { input: '1\nGET missing', expected: 'null' },
+      { input: '2\nPUT x 999\nGET x', expected: '999' },
+      { input: '5\nPUT a 1\nPUT b 2\nPUT a 3\nGET a\nGET b', expected: '3\n2' },
+    ],
+  };
+}
+
 // ─── POST /api/students/problems/generate-ai ────────────────────────────────
 // Dynamically generates a brand new algorithmic problem statement, starter code, and hidden test cases using active AI model (Ollama / Claude / Gemini)
 router.post('/problems/generate-ai', async (req, res) => {
@@ -313,59 +390,43 @@ router.post('/problems/generate-ai', async (req, res) => {
       You are an expert Computer Science Problem Creator for TalentForge.
       Generate a brand new algorithmic coding problem on topic: "${topic}", difficulty tier: "${difficulty}", domain: "${domain}".
 
-      Respond strictly in valid JSON with schema:
+      Respond strictly in valid JSON with this EXACT schema (no extra fields, no markdown):
       {
-        "title": "string",
-        "slug": "string (kebab-case)",
+        "title": "${topic} — Optimized Engine",
+        "slug": "ai-${difficulty.toLowerCase()}-${topic.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now()}",
         "tier": "${difficulty}",
         "domain": "${domain}",
-        "reward": 100,
-        "description": "string (Comprehensive problem statement in Markdown format with Input Format, Output Format, Constraints, and Examples)",
+        "reward": ${difficulty === 'Architect' ? 250 : difficulty === 'Builder' ? 150 : 100},
+        "description": "<Full Markdown problem statement with: Problem Statement, Requirements, Input Format, Output Format, Constraints, Example with input/output>",
         "publicTestCases": [
-          { "input": "string", "expected": "string" },
-          { "input": "string", "expected": "string" }
+          { "input": "<input1>", "expected": "<output1>" },
+          { "input": "<input2>", "expected": "<output2>" }
         ],
         "hiddenTestCases": [
-          { "input": "string", "expected": "string" },
-          { "input": "string", "expected": "string" },
-          { "input": "string", "expected": "string" }
+          { "input": "<hidden1>", "expected": "<expected1>" },
+          { "input": "<hidden2>", "expected": "<expected2>" },
+          { "input": "<hidden3>", "expected": "<expected3>" }
         ]
       }
     `;
 
-    interface GeneratedProblem {
-      title: string;
-      slug: string;
-      tier: string;
-      domain: string;
-      reward: number;
-      description: string;
-      publicTestCases: any[];
-      hiddenTestCases: any[];
-    }
-
     let gen: GeneratedProblem;
     try {
-      gen = await adapter.generateJSON<GeneratedProblem>(prompt);
+      const rawGen = await adapter.generateJSON<GeneratedProblem>(prompt);
+      // Validate that AI returned a real problem (not generic stub)
+      if (rawGen && rawGen.title && rawGen.description && rawGen.description.length > 100) {
+        gen = rawGen;
+        // Ensure slug is unique with timestamp
+        if (!gen.slug || gen.slug.length < 5) {
+          gen.slug = `ai-${topic.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now()}`;
+        }
+      } else {
+        console.warn('[AI Problem Generator] AI returned a stub response, using structured fallback');
+        gen = buildAIFallbackProblem(topic, difficulty, domain);
+      }
     } catch (e) {
-      const slug = `ai-${topic.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now()}`;
-      gen = {
-        title: `AI Challenge: ${topic}`,
-        slug,
-        tier: difficulty,
-        domain,
-        reward: difficulty === 'Architect' ? 250 : difficulty === 'Builder' ? 150 : 100,
-        description: `### Problem Statement\nImplement an efficient solution for **${topic}** under high throughput constraints.\n\n### Input Format\nFirst line contains integer \`N\`.\n\n### Output Format\nReturn calculated state metric.`,
-        publicTestCases: [
-          { input: '5', expected: '15' },
-          { input: '10', expected: '55' },
-        ],
-        hiddenTestCases: [
-          { input: '20', expected: '210' },
-          { input: '100', expected: '5050' },
-          { input: '1000', expected: '500500' },
-        ],
-      };
+      console.warn('[AI Problem Generator] AI adapter error, using structured fallback:', (e as Error).message);
+      gen = buildAIFallbackProblem(topic, difficulty, domain);
     }
 
     let created: any;
@@ -489,18 +550,20 @@ router.get('/problems/:slug', async (req, res) => {
       if (seededMap[slug]) {
         problem = seededMap[slug];
       } else {
-        // Synthesize dynamic AI problem structure for any custom AI slug
-        const topicName = slug.replace(/^ai-/, '').replace(/-\d+$/, '').replace(/-/g, ' ');
-        const cleanTitle = topicName.charAt(0).toUpperCase() + topicName.slice(1);
+        // Synthesize dynamic AI problem structure for any AI-generated slug using structured fallback
+        // Strip ai- prefix and trailing timestamp to reconstruct human-readable topic name
+        const topicName = slug
+          .replace(/^ai-(?:builder-|architect-|explorer-)?/, '')
+          .replace(/-\d{10,}$/, '')   // remove trailing unix timestamp
+          .replace(/-/g, ' ')
+          .trim();
+        const cleanTitle = topicName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        // Infer difficulty from slug prefix if present
+        const tier = slug.includes('-architect-') ? 'Architect' : slug.includes('-explorer-') ? 'Explorer' : 'Builder';
         problem = {
+          ...buildAIFallbackProblem(cleanTitle, tier, 'cse'),
           id: 'ai-' + slug,
-          title: `AI Challenge: ${cleanTitle}`,
           slug,
-          tier: 'Builder',
-          domain: 'cse',
-          reward: 150,
-          description: `### Problem Statement\nImplement an efficient algorithmic solution for **${cleanTitle}** under high performance constraints.\n\n### Input Format\nFirst line contains integer \`N\`.\n\n### Output Format\nReturn optimal calculated state.`,
-          publicTestCases: [{ input: '5', expected: '15' }, { input: '10', expected: '55' }],
           createdAt: new Date(),
           _count: { submissions: 1 },
         } as any;
