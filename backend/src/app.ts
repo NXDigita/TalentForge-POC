@@ -18,6 +18,8 @@ import copilotRoutes from './routes/copilot';
 import reviewerRoutes from './routes/reviewer';
 import reviewsRoutes from './routes/reviews';
 import employerRoutes from './routes/employers';
+import paymentsRoutes from './routes/payments';
+import lmsRoutes from './routes/lms';
 import { publicApiRateLimiter } from './middleware/rateLimiter';
 
 // Sentry Observability Setup
@@ -52,6 +54,8 @@ app.use('/api/copilot',  copilotRoutes);
 app.use('/api/reviewer', reviewerRoutes);
 app.use('/api/reviews',  reviewsRoutes);
 app.use('/api/employers', publicApiRateLimiter, employerRoutes);
+app.use('/api/payments', paymentsRoutes);
+app.use('/api/lms',      lmsRoutes);
 app.use('/internal',     internalRoutes);   // worker-only internal endpoints
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 

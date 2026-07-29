@@ -15,6 +15,7 @@ import ReviewerPortal from './pages/ReviewerPortal';
 import EmployerDiscover from './pages/EmployerDiscover';
 import EmployerShortlist from './pages/EmployerShortlist';
 import Guide from './pages/Guide';
+import Learning from './pages/Learning';
 import NotFound from './pages/NotFound';
 import AuthCallback from './pages/AuthCallback';
 import VerifyBadge from './pages/VerifyBadge';
@@ -48,6 +49,7 @@ function App() {
                   <Route path="/problems/:slug" element={<ProblemDetail />} />
                   <Route path="/assessment" element={<Assessment />} />
                   <Route path="/submissions" element={<Submissions />} />
+                  <Route path="/learning" element={<Learning />} />
                 </Route>
 
                 {/* Expert Reviewer Routes */}

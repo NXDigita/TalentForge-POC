@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Sparkles, Filter, Code2, Award, ArrowRight, Layers, CheckCircle2, Bot, Plus, X, Loader2 } from 'lucide-react';
+import { Search, Sparkles, Filter, Code2, Award, ArrowRight, Layers, CheckCircle2, Bot, Plus, X, Loader2, Lock } from 'lucide-react';
 import { getProblems, Problem, generateAIProblem } from '../services/api';
 import { toast } from 'sonner';
+import { useAuth } from '../context/AuthContext';
+import TierUpgradeModal from '../components/TierUpgradeModal';
+import api from '../services/api';
 
 const TIER_COLORS: Record<string, { bg: string; text: string; border: string; glow: string }> = {
   Explorer: {
@@ -37,16 +40,30 @@ const TIER_COLORS: Record<string, { bg: string; text: string; border: string; gl
   },
 };
 
+// Tier access map: which paid tier unlocks which problem tiers
+const TIER_ACCESS: Record<string, string[]> = {
+  free:     ['Explorer'],
+  basic:    ['Explorer', 'Builder', 'Apprentice'],
+  advanced: ['Explorer', 'Builder', 'Apprentice', 'Architect', 'Master'],
+};
+
 export default function ProblemBoard() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [problems, setProblems] = useState<Problem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [unlockedTier, setUnlockedTier] = useState<string>('free');
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDomain, setSelectedDomain] = useState<string>('all');
   const [selectedTier, setSelectedTier] = useState<string>('all');
+
+  // Tier Upgrade Modal
+  const [tierModalConfig, setTierModalConfig] = useState<{ show: boolean; tier: 'basic' | 'advanced'; problemTitle: string }>({
+    show: false, tier: 'basic', problemTitle: '',
+  });
 
   // AI Problem Generator Modal State
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
@@ -54,6 +71,28 @@ export default function ProblemBoard() {
   const [aiDifficulty, setAiDifficulty] = useState('Builder');
   const [aiDomain, setAiDomain] = useState('cse');
   const [generating, setGenerating] = useState(false);
+
+  // Fetch user's unlocked tier from payments status
+  useEffect(() => {
+    api.get('/payments/status').then(res => {
+      setUnlockedTier(res.data?.unlockedTier || 'free');
+    }).catch(() => {});
+  }, []);
+
+  const canAccessTier = (problemTier: string): boolean => {
+    const access = TIER_ACCESS[unlockedTier] || TIER_ACCESS.free;
+    return access.includes(problemTier);
+  };
+
+  const handleCardClick = (problem: Problem, e: React.MouseEvent) => {
+    if (canAccessTier(problem.tier)) {
+      navigate(`/problems/${problem.slug}`);
+    } else {
+      e.preventDefault();
+      const requiredTier = ['Architect', 'Master'].includes(problem.tier) ? 'advanced' : 'basic';
+      setTierModalConfig({ show: true, tier: requiredTier, problemTitle: problem.title });
+    }
+  };
 
   useEffect(() => {
     async function fetchProblems() {
@@ -239,31 +278,64 @@ export default function ProblemBoard() {
         </div>
       )}
 
+      {/* Tier Upgrade Modal */}
+      {tierModalConfig.show && (
+        <TierUpgradeModal
+          tier={tierModalConfig.tier}
+          problemTitle={tierModalConfig.problemTitle}
+          onClose={() => setTierModalConfig(p => ({ ...p, show: false }))}
+          onSuccess={(t) => {
+            setUnlockedTier(t);
+            setTierModalConfig(p => ({ ...p, show: false }));
+            toast.success(`🎉 ${t === 'advanced' ? 'Advanced' : 'Basic'} tier unlocked! Access granted.`);
+          }}
+        />
+      )}
+
       {/* Problems Grid */}
       {!loading && (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {filteredProblems.map((problem) => {
             const tierStyle = TIER_COLORS[problem.tier] || TIER_COLORS.Explorer;
+            const isLocked = !canAccessTier(problem.tier);
             return (
               <div
                 key={problem.id}
-                className="group relative flex flex-col justify-between rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-brand-500/40 hover:shadow-xl dark:hover:border-brand-500/30 overflow-hidden"
+                onClick={(e) => handleCardClick(problem, e)}
+                className={`group relative flex flex-col justify-between rounded-3xl border bg-white dark:bg-slate-900 p-6 shadow-sm transition-all duration-300 overflow-hidden cursor-pointer ${
+                  isLocked
+                    ? 'border-slate-200 dark:border-slate-800 opacity-70 hover:opacity-90'
+                    : 'border-slate-200/80 dark:border-slate-800 hover:-translate-y-1 hover:border-brand-500/40 hover:shadow-xl dark:hover:border-brand-500/30'
+                }`}
               >
+                {/* Lock overlay */}
+                {isLocked && (
+                  <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-3xl bg-slate-900/60 backdrop-blur-[2px] gap-2">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-800/80 border border-slate-700">
+                      <Lock className="h-6 w-6 text-slate-300" />
+                    </div>
+                    <p className="text-xs font-extrabold text-white">Locked</p>
+                    <p className="text-[10px] text-slate-400 text-center px-4">
+                      {['Architect', 'Master'].includes(problem.tier) ? 'Requires ₹499 Advanced unlock' : 'Requires ₹199 Basic unlock'}
+                    </p>
+                    <button className="mt-1 rounded-full bg-brand-600 px-4 py-1.5 text-[11px] font-extrabold text-white hover:bg-brand-500 transition">
+                      Unlock →
+                    </button>
+                  </div>
+                )}
+
                 <div className={`absolute top-0 right-0 h-32 w-32 bg-gradient-to-bl ${tierStyle.glow} opacity-30 blur-2xl pointer-events-none`} />
 
                 <div className="space-y-4">
-                  {/* Top Badges Row */}
                   <div className="flex items-center justify-between">
                     <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold border ${tierStyle.bg} ${tierStyle.text} ${tierStyle.border}`}>
                       <Layers className="h-3.5 w-3.5" /> {problem.tier}
                     </span>
-
                     <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                       {problem.domain}
                     </span>
                   </div>
 
-                  {/* Title & Description */}
                   <div>
                     <h3 className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
                       {problem.title}
@@ -274,19 +346,14 @@ export default function ProblemBoard() {
                   </div>
                 </div>
 
-                {/* Footer Actions */}
                 <div className="pt-6 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between mt-4">
                   <div className="flex items-center gap-2">
                     <Award className="h-4 w-4 text-amber-500" />
                     <span className="text-xs font-bold text-slate-700 dark:text-slate-300">+{problem.reward || 100} XP</span>
                   </div>
-
-                  <Link
-                    to={`/problems/${problem.slug}`}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 dark:bg-slate-800 px-4 py-2 text-xs font-bold text-white transition-all group-hover:bg-brand-600 group-hover:shadow-md group-hover:shadow-brand-500/20"
-                  >
-                    Solve Challenge <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
-                  </Link>
+                  <div className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 dark:bg-slate-800 px-4 py-2 text-xs font-bold text-white transition-all group-hover:bg-brand-600 group-hover:shadow-md group-hover:shadow-brand-500/20">
+                    {isLocked ? <><Lock className="h-3.5 w-3.5" /> Unlock</> : <>Solve Challenge <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" /></>}
+                  </div>
                 </div>
               </div>
             );

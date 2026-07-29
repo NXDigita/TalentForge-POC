@@ -37,12 +37,83 @@ router.patch('/submissions/:id', requireInternalSecret, async (req, res) => {
         score:    score  ?? null,
         feedback: feedback ? String(feedback) : null,
       },
+      include: { problem: true },
     });
+
+    const isSuccess = typeof score === 'number' && score >= 75;
+
+    // Gamification & Notifications
+    const user = await prisma.user.findUnique({ where: { id: submission.userId } });
+    if (user) {
+      let { successfulSubmissions, totalSubmissions, currentStreak, longestStreak, lastActivityDate } = user;
+      
+      totalSubmissions += 1;
+      
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const lastActivity = lastActivityDate ? new Date(lastActivityDate) : null;
+      if (lastActivity) lastActivity.setHours(0,0,0,0);
+      
+      // Streak calculation (simple 1 day apart)
+      if (!lastActivity || today.getTime() - lastActivity.getTime() > 86400000) {
+          currentStreak = 1;
+      } else if (today.getTime() - lastActivity.getTime() === 86400000) {
+          currentStreak += 1;
+      }
+      if (currentStreak > longestStreak) longestStreak = currentStreak;
+      
+      if (isSuccess) {
+         successfulSubmissions += 1;
+      }
+      
+      await prisma.user.update({
+         where: { id: user.id },
+         data: {
+            totalSubmissions,
+            successfulSubmissions,
+            currentStreak,
+            longestStreak,
+            lastActivityDate: new Date(),
+         }
+      });
+
+      // Phase 7/8: Recruiter Alert on 10th submission
+      if (totalSubmissions === 10) {
+         await prisma.notification.create({
+            data: {
+               userId: user.id,
+               type: 'recruiter_alert',
+               title: 'Profile Visible to Recruiters',
+               message: 'You have completed 10 simulations! Your profile is now actively visible to hiring managers.',
+            }
+         });
+         console.log(`\n[Notification] 📧 Email to Employers: Candidate ${user.name} (${user.email}) reached 10 submissions! Profile active.`);
+         console.log(`[Notification] 📱 WhatsApp to ${user.name}: Congrats! Recruiters can now see your verified profile on TalentForge.\n`);
+      }
+      
+      // Phase 5: LMS Remediation Notification on Failure
+      if (!isSuccess && status === 'completed') {
+         await prisma.notification.create({
+            data: {
+               userId: user.id,
+               type: 'lms_remediation',
+               title: 'LMS Module Unlocked',
+               message: `You struggled with "${submission.problem.title}". Watch the remediation video in the Learning Center to unlock a retest.`,
+            }
+         });
+      }
+    }
 
     // Auto-award badge if score >= 75
     let awardedBadge = null;
-    if (typeof score === 'number' && score >= 75) {
+    if (isSuccess) {
       awardedBadge = await checkAndAwardBadge(submission.userId, submission.problemId, score);
+      if (awardedBadge && user) {
+         await prisma.user.update({
+             where: { id: user.id },
+             data: { badgesEarned: { increment: 1 } }
+         });
+      }
     }
 
     return res.json({ ok: true, submission, badge: awardedBadge });

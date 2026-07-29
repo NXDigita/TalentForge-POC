@@ -203,7 +203,12 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res) => {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, name: true, domain: true, role: true, tier: true, xp: true, walletAddress: true },
+      select: {
+        id: true, email: true, name: true, domain: true, role: true, tier: true, xp: true, walletAddress: true,
+        badgesEarned: true, currentStreak: true, longestStreak: true, successfulSubmissions: true,
+        totalSubmissions: true, velocityScore: true, unlockedTier: true, onboardingComplete: true,
+        geoCity: true, geoCountry: true, githubUsername: true, avatarUrl: true, linkedinId: true
+      },
     });
 
     if (!user) {
@@ -233,7 +238,6 @@ router.get(
 
       const { accessToken, refreshToken } = await issueTokens(user.id);
 
-      // Redirect to frontend landing page with tokens as query params
       return res.redirect(
         `http://localhost:5173/auth-callback?accessToken=${accessToken}&refreshToken=${refreshToken}`
       );
@@ -244,4 +248,188 @@ router.get(
   }
 );
 
+// ─── POST /api/auth/oauth/github ─────────────────────────────────────────────
+// Exchange GitHub OAuth code for user profile and JWT
+router.post('/oauth/github', async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ error: 'GitHub OAuth code required' });
+
+    // Exchange code for access token
+    const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: process.env.GITHUB_CLIENT_ID,
+        client_secret: process.env.GITHUB_CLIENT_SECRET,
+        code,
+      }),
+    });
+    const tokenData = await tokenRes.json() as { access_token?: string; error?: string };
+    if (!tokenData.access_token) {
+      return res.status(401).json({ error: 'GitHub token exchange failed', detail: tokenData.error });
+    }
+
+    // Fetch GitHub profile
+    const profileRes = await fetch('https://api.github.com/user', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}`, Accept: 'application/json' },
+    });
+    const profile = await profileRes.json() as { id: number; login: string; name?: string; email?: string; avatar_url?: string };
+
+    // Fetch primary email if not in profile
+    let email = profile.email;
+    if (!email) {
+      const emailRes = await fetch('https://api.github.com/user/emails', {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      });
+      const emails = await emailRes.json() as Array<{ email: string; primary: boolean; verified: boolean }>;
+      email = emails.find(e => e.primary && e.verified)?.email ?? null;
+    }
+
+    if (!email) return res.status(400).json({ error: 'GitHub account has no verified email' });
+
+    // Upsert user
+    let user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email,
+          name: profile.name || profile.login,
+          password: '',
+          domain: 'cse',
+          role: 'STUDENT',
+          githubId: String(profile.id),
+          githubUsername: profile.login,
+          avatarUrl: profile.avatar_url,
+        },
+      });
+    } else {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { githubId: String(profile.id), githubUsername: profile.login, avatarUrl: profile.avatar_url },
+      });
+    }
+
+    const { accessToken, refreshToken } = await issueTokens(user.id, user.role);
+    return res.json({
+      accessToken, refreshToken,
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, githubUsername: user.githubUsername, avatarUrl: user.avatarUrl, onboardingComplete: user.onboardingComplete },
+    });
+  } catch (err: any) {
+    console.error('GitHub OAuth error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── POST /api/auth/oauth/linkedin ───────────────────────────────────────────
+// Exchange LinkedIn OAuth code for user profile and JWT
+router.post('/oauth/linkedin', async (req, res) => {
+  try {
+    const { code, redirectUri } = req.body;
+    if (!code) return res.status(400).json({ error: 'LinkedIn OAuth code required' });
+
+    const clientId = process.env.LINKEDIN_CLIENT_ID;
+    const clientSecret = process.env.LINKEDIN_CLIENT_SECRET;
+
+    // Exchange code for access token
+    const params = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: redirectUri || 'http://localhost:5173/auth-callback',
+      client_id: clientId!,
+      client_secret: clientSecret!,
+    });
+
+    const tokenRes = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
+    const tokenData = await tokenRes.json() as { access_token?: string; error?: string };
+    if (!tokenData.access_token) {
+      return res.status(401).json({ error: 'LinkedIn token exchange failed' });
+    }
+
+    // Fetch LinkedIn profile (OpenID Connect userinfo)
+    const profileRes = await fetch('https://api.linkedin.com/v2/userinfo', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+    const profile = await profileRes.json() as { sub: string; name?: string; given_name?: string; email?: string; picture?: string };
+
+    const email = profile.email;
+    if (!email) return res.status(400).json({ error: 'LinkedIn account has no accessible email' });
+
+    let user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email,
+          name: profile.name || profile.given_name || 'LinkedIn User',
+          password: '',
+          domain: 'cse',
+          role: 'STUDENT',
+          linkedinId: profile.sub,
+          avatarUrl: profile.picture,
+        },
+      });
+    } else {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { linkedinId: profile.sub, avatarUrl: profile.picture },
+      });
+    }
+
+    const { accessToken, refreshToken } = await issueTokens(user.id, user.role);
+    return res.json({
+      accessToken, refreshToken,
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, linkedinId: user.linkedinId, avatarUrl: user.avatarUrl, onboardingComplete: user.onboardingComplete },
+    });
+  } catch (err: any) {
+    console.error('LinkedIn OAuth error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── POST /api/auth/geo ───────────────────────────────────────────────────────
+// Capture IP geolocation for the logged-in user
+router.post('/geo', requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || '127.0.0.1';
+
+    // Use ip-api.com (free, no key required for non-commercial)
+    const geoRes = await fetch(`http://ip-api.com/json/${ip}?fields=city,regionName,country`);
+    const geo = await geoRes.json() as { city?: string; regionName?: string; country?: string };
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { geoCity: geo.city, geoState: geo.regionName, geoCountry: geo.country },
+    });
+
+    return res.json({ ok: true, geo });
+  } catch (err) {
+    console.error('Geo capture error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── PUT /api/auth/onboarding ─────────────────────────────────────────────────
+// Mark onboarding complete and set selected domain
+router.put('/onboarding', requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    const { selectedDomain } = req.body;
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: { selectedDomain, onboardingComplete: true, domain: selectedDomain || 'cse' },
+      select: { id: true, email: true, name: true, role: true, selectedDomain: true, onboardingComplete: true },
+    });
+    return res.json({ ok: true, user });
+  } catch (err) {
+    console.error('Onboarding update error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;
+
