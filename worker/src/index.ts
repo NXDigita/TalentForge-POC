@@ -61,9 +61,14 @@ interface ProblemCasesResponse {
 
 // ─── Redis / Socket.IO emitter ────────────────────────────────────────────────
 
-const redisUrl   = process.env.REDIS_URL ?? 'redis://localhost:6379';
+const redisUrl   = process.env.REDIS_URL ?? 'redis://:redis_dev_secret@localhost:6380';
 const connection = new IORedis(redisUrl, { maxRetriesPerRequest: null });
-const emitter    = new Emitter(connection);
+
+connection.on('error', (err) => {
+  console.error('[Worker] Redis client error:', err.message);
+});
+
+const emitter = new Emitter(connection);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -320,7 +325,7 @@ const worker = new Worker<GradeJobData>(
     }
   },
   {
-    connection: connection as any,
+    connection: connection.duplicate() as any,
     concurrency:     4,
     stalledInterval: 15_000, // Tuned stalled interval (15s)
     maxStalledCount: 2,
