@@ -10,6 +10,18 @@ export class MockAdapter implements AIAdapter {
   }
 
   async generateJSON<T>(prompt: string, schema?: any, options?: AIRequestOptions): Promise<T> {
+    // If generating skills extraction
+    if (prompt.toLowerCase().includes('skills') || prompt.toLowerCase().includes('skillscore')) {
+      const mockSkills = [
+        { skill: 'React', score: 85, category: 'core' },
+        { skill: 'TypeScript', score: 90, category: 'core' },
+        { skill: 'Node.js', score: 80, category: 'strength' },
+        { skill: 'PostgreSQL', score: 75, category: 'strength' },
+        { skill: 'Machine Learning', score: 60, category: 'interest' },
+      ];
+      return mockSkills as unknown as T;
+    }
+
     // If generating learning path
     if (prompt.toLowerCase().includes('learning path') || prompt.toLowerCase().includes('milestones')) {
       const mockLearningPath = {
@@ -47,5 +59,13 @@ export class MockAdapter implements AIAdapter {
       yield word + ' ';
       await new Promise((r) => setTimeout(r, 40));
     }
+  }
+
+  async generateEmbedding(text: string): Promise<number[]> {
+    // Return a mock 1536-dimensional vector for pgvector
+    const vector = new Array(1536).fill(0).map(() => Math.random() * 2 - 1);
+    // Normalize vector (simplified)
+    const norm = Math.sqrt(vector.reduce((sum, val) => sum + val * val, 0));
+    return vector.map((val) => val / norm);
   }
 }

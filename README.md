@@ -89,7 +89,7 @@ TalentForge-POC/
 │       └── app.ts            # Server entry + Redis Socket adapter + Sentry + rate limiting
 ├── frontend/                 # React 18 + Vite + TypeScript Client (Port 5173)
 │   └── src/
-│       ├── components/       # AppShell (RBAC nav), RequireRole guard, Monaco Editor panels
+│       ├── components/       # AppShell (RBAC nav), CopilotDrawer (Global AI Chat), RequireRole guard
 │       ├── context/          # AuthContext (role-aware), ThemeContext
 │       ├── pages/
 │       │   ├── Home.tsx            # Landing page v1: Hero, How-It-Works, Badge showcase
@@ -136,13 +136,14 @@ TalentForge implements strict RBAC. Each role sees only its authorized screens a
 - **Problem Board**: 8 seeded engineering challenges (Explorer → Builder → Architect tiers) + AI-generated problems on demand.
 - **AI Problem Generator**: Click "✨ Generate AI Problem" to prompt the active AI model adapter (Ollama llama3 / Claude / Gemini) to create a new problem with hidden test cases, then open it in Monaco Editor.
 - **Monaco Editor**: Syntax-highlighted code editor with Python/JavaScript/Java language support.
+- **AI Copilot**: A globally available AI mentor drawer that streams contextual advice and suggested prompts based on the current page or problem.
 - **Sandbox Grading**: BullMQ worker grading with Security Precheck → Correctness → Big-O Complexity → Style score.
 - **Real-time Results**: Socket.io live `grading:complete` event → Results panel with score breakdown.
 - **Submission Cooldown**: 60-second resubmit lockout with live countdown chip.
 - **Leaderboard**: Paginated podium (Gold/Silver/Bronze) with 7-day score trends.
 - **Psychometric Assessment**: 20-question behavioral quiz + domain knowledge test with radar chart.
 - **Notification Bell**: Unread count badge, review result notifications from Reviewer portal.
-- **9-Tab Profile**: Personal, Academic, Skills, Achievements, Resume ATS Upload, Social Links, Polygon NFT Badges, Security, Preferences.
+- **AI Talent Profile**: A comprehensive 9-tab profile featuring an AI-extracted Skills Radar Chart (powered by pgvector), strengths chips, GitHub/Social links, and a public/private recruiter visibility toggle.
 
 ### 🔍 Reviewer Workflow
 - **Review Queue**: `GET /reviews/queue` — oldest `AI_VERIFIED` submissions first.
@@ -217,6 +218,12 @@ AI is used for:
 | `POST` | `/api/students/feedback/format` | AI 3-bullet coaching feedback | No |
 | `POST` | `/api/students/assessment` | Submit psychometric answers | Yes |
 | `GET` | `/api/students/assessment/results/:id` | Get psychometric score + radar | Yes |
+
+### AI Copilot & Embedding
+| Method | Endpoint | Description | Auth |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/copilot/chat` | SSE streaming AI chat with page context injection | Yes |
+| `POST` | `/api/internal/embed-profiles` | Extract skills + embed profile text via pgvector | INTERNAL |
 
 ### Reviews (Reviewer RBAC)
 | Method | Endpoint | Description | Auth |

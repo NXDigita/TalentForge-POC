@@ -5,6 +5,7 @@ import api from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import OnboardingTour from './OnboardingTour';
+import CopilotDrawer from './CopilotDrawer';
 
 interface NotificationItem {
   id: string;
@@ -37,6 +38,7 @@ export default function AppShell() {
   ]);
   const [unreadCount, setUnreadCount] = useState<number>(1);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isCopilotOpen, setIsCopilotOpen] = useState(false);
 
   const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
 
@@ -400,12 +402,24 @@ export default function AppShell() {
         </header>
 
         {/* Content Body */}
-        <main className="flex-1 overflow-y-auto p-8 bg-slate-50/50 dark:bg-slate-950/20 transition-colors duration-200">
+        <main className="flex-1 overflow-y-auto p-8 bg-slate-50/50 dark:bg-slate-950/20 transition-colors duration-200 relative">
           <div className="mx-auto max-w-5xl">
             <Outlet />
           </div>
+          
+          {/* Global Copilot FAB */}
+          {isAuthenticated && (
+            <button
+              onClick={() => setIsCopilotOpen(true)}
+              className="fixed bottom-8 right-8 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-brand-600 text-white shadow-xl shadow-brand-500/30 hover:bg-brand-500 transition-transform hover:scale-105 active:scale-95"
+              aria-label="Open AI Copilot"
+            >
+              <Sparkles className="h-6 w-6" />
+            </button>
+          )}
         </main>
       </div>
+      <CopilotDrawer isOpen={isCopilotOpen} onClose={() => setIsCopilotOpen(false)} />
       <OnboardingTour />
     </div>
   );

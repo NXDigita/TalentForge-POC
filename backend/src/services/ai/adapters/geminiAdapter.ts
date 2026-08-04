@@ -110,4 +110,28 @@ export class GeminiAdapter implements AIAdapter {
       yield* this.fallbackMock.streamText(messages, context, options);
     }
   }
+
+  async generateEmbedding(text: string): Promise<number[]> {
+    if (!this.ai) {
+      console.warn('[GeminiAdapter] GEMINI_API_KEY missing. Falling back to MockAdapter.');
+      return this.fallbackMock.generateEmbedding(text);
+    }
+    try {
+      const response = await this.ai.models.embedContent({
+        model: 'text-embedding-004',
+        contents: text,
+      });
+      if (response.embeddings && response.embeddings[0] && response.embeddings[0].values) {
+        return response.embeddings[0].values as number[];
+      }
+      // If the SDK returns embedding directly on response
+      if ((response as any).embedding && (response as any).embedding.values) {
+        return (response as any).embedding.values as number[];
+      }
+      return this.fallbackMock.generateEmbedding(text);
+    } catch (err: any) {
+      console.error('[GeminiAdapter] Embedding error:', err.message);
+      return this.fallbackMock.generateEmbedding(text);
+    }
+  }
 }

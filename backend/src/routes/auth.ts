@@ -208,7 +208,8 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res) => {
         badgesEarned: true, currentStreak: true, longestStreak: true, successfulSubmissions: true,
         totalSubmissions: true, velocityScore: true, unlockedTier: true, onboardingComplete: true,
         profileFrozen: true, mobileNumber: true, geoCity: true, geoCountry: true, githubUsername: true,
-        avatarUrl: true, linkedinId: true
+        avatarUrl: true, linkedinId: true, profilePublic: true,
+        skillScores: true
       },
     });
 

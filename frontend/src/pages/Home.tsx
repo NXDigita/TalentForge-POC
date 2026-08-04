@@ -111,7 +111,7 @@ export default function Home() {
             </div>
             <h3 className="text-lg font-bold text-white">Verified Code Execution</h3>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Solve engineering challenges in Monaco Editor. Code runs against hidden test cases in automated execution environments with real-time feedback.
+              Solve engineering challenges in Monaco Editor. Get help from your AI Copilot when stuck, and run against hidden test cases.
             </p>
           </div>
 
@@ -122,7 +122,7 @@ export default function Home() {
             </div>
             <h3 className="text-lg font-bold text-white">Earn Badges & Get Discovered</h3>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Unlock cryptographically verified PDF/NFT badges, share directly to LinkedIn, and get shortlisted by employers on the Recruiter Discover Portal.
+              Build an AI-Assessed Talent Profile, unlock cryptographically verified PDF/NFT badges, and get shortlisted by top employers.
             </p>
           </div>
         </div>

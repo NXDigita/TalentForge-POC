@@ -1,10 +1,12 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
 }
 
 model User {
@@ -42,6 +44,7 @@ model User {
   // Profile data & freeze
   profileFrozen         Boolean   @default(false)
   mobileNumber          String?
+  profileEmbedding      Unsupported("vector(1536)")?
 
   // Challenge tier unlock (payments)
   unlockedTier          String    @default("free")   // free | basic | advanced
@@ -59,6 +62,7 @@ model User {
   submissions    Submission[]
   badges         Badge[]
   psychProfile   PsychProfile?
+  skillScores    SkillScore[]
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   learningPath   LearningPath?
@@ -220,5 +224,18 @@ model Placement {
   companyName String
   packageLPA  Float    @default(0)
   placedAt    DateTime @default(now())
+}
+
+model SkillScore {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  skill     String
+  score     Int
+  category  String   // e.g., 'strength', 'interest', 'core'
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, skill])
 }
 

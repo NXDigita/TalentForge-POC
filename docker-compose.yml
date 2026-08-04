@@ -6,7 +6,7 @@ name: talentforge
 
 services:
   postgres:
-    image: postgres:16.4-alpine          # pin minor version — reproducible across both machines
+    image: pgvector/pgvector:pg16          # pin minor version — reproducible across both machines
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-talentforge}

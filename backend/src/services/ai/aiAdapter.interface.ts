@@ -27,6 +27,11 @@ export interface AIAdapter {
   generateJSON<T>(prompt: string, schema?: any, options?: AIRequestOptions): Promise<T>;
 
   /**
+   * Generate an embedding vector for a given text
+   */
+  generateEmbedding(text: string): Promise<number[]>;
+
+  /**
    * Stream LLM response chunks for real-time SSE chat
    */
   streamText(

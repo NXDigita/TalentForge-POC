@@ -145,4 +145,8 @@ export class ClaudeAdapter implements AIAdapter {
       yield* this.fallbackMock.streamText(messages, context, options);
     }
   }
+
+  async generateEmbedding(text: string): Promise<number[]> {
+    return this.fallbackMock.generateEmbedding(text);
+  }
 }

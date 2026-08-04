@@ -351,6 +351,41 @@ const worker = new Worker<GradeJobData>(
   },
 );
 
+// ─── Profile Embedding Queue ─────────────────────────────────────────────────
+const profileQueue = new Queue('profile-embedding', { connection: connection as any });
+const profileWorker = new Worker(
+  'profile-embedding',
+  async (job) => {
+    if (job.name === 'nightly-embed') {
+      const backendUrl = process.env.BACKEND_INTERNAL_URL ?? 'http://localhost:5001';
+      const secret = process.env.INTERNAL_SECRET ?? 'tf-internal';
+      
+      console.log('[Worker] Running nightly profile embedding job...');
+      const res = await fetch(`${backendUrl}/internal/embed-profiles`, {
+        method: 'POST',
+        headers: {
+          'x-internal-secret': secret,
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error(`Profile embedding failed: ${await res.text()}`);
+      }
+      
+      const data = await res.json();
+      console.log(`[Worker] Profile embedding complete. Processed: ${data.processed}`);
+      return data;
+    }
+  },
+  { connection: connection as any }
+);
+
+// Register repeatable job for nightly embedding (midnight every day)
+profileQueue.add('nightly-embed', {}, {
+  repeat: { pattern: '0 0 * * *' },
+  jobId: 'nightly-embed-job'
+});
+
 // ─── Event listeners ──────────────────────────────────────────────────────────
 
 worker.on('completed', (job) => {

@@ -63,6 +63,16 @@ const FAQS: FAQItem[] = [
     answer:
       'Each role gets a distinct Profile view. STUDENT: 9-tab profile (Personal, Academic, Skills, Achievements, Resume ATS Upload, Social Links, Polygon NFT Badges, Security, Preferences). REVIEWER: code evaluation metrics (submissions reviewed, approval rate, avg star rating), domain competencies, evaluation audit log. EMPLOYER: recruitment metrics (shortlisted candidates, code samples inspected), Recruiter API Key and ATS integration settings. ADMIN: platform health (active users, daily sandbox executions, S3 backup cron, AI adapter config).',
   },
+  {
+    question: 'How does the AI Copilot work?',
+    answer:
+      'The AI Copilot is a global floating drawer available on all pages. It streams responses using Server-Sent Events (SSE) from the /api/copilot/chat endpoint. It acts as an interactive mentor, automatically injecting the context of your current page (e.g., viewing a specific problem or your learning path) into the prompt. It also provides context-aware suggested prompts to help guide your learning.',
+  },
+  {
+    question: 'What is the AI Talent Profile and how are skills extracted?',
+    answer:
+      'The Talent Profile goes beyond standard resumes by generating an AI-Assessed Skills Radar. A nightly BullMQ worker processes updated profiles using the active LLM to extract a structured SkillScore array. The profile text is also converted into a 1536-dimensional vector embedding stored securely using PostgreSQL\'s pgvector extension. Employers can discover candidates through vector similarity matching.',
+  },
 ];
 
 const ROLES = [
@@ -317,6 +327,8 @@ export default function Guide() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {[
             { icon: <Bot className="h-4 w-4" />, label: 'AI Problem Generator', color: 'text-purple-400', desc: 'Ollama/Claude/Gemini generates new problems with hidden test cases on demand.' },
+            { icon: <Sparkles className="h-4 w-4" />, label: 'AI Copilot Mentor', color: 'text-indigo-400', desc: 'Global sliding drawer with SSE streaming chat and context-aware suggested prompts.' },
+            { icon: <Database className="h-4 w-4" />, label: 'AI Talent Profile & pgvector', color: 'text-blue-500', desc: 'Skills extraction to Recharts Radar, plus pgvector embeddings for smart employer matching.' },
             { icon: <Terminal className="h-4 w-4" />, label: 'Monaco Code Editor', color: 'text-brand-400', desc: 'Syntax-highlighted IDE with Python/JavaScript/Java support + AI copilot sidebar.' },
             { icon: <ShieldCheck className="h-4 w-4" />, label: 'Security Precheck', color: 'text-red-400', desc: 'Static code scanner blocks dangerous syscalls before sandbox spawn.' },
             { icon: <Cpu className="h-4 w-4" />, label: 'BullMQ Sandboxed Grader', color: 'text-indigo-400', desc: 'Docker container execution with N/2N/4N scaling, Sentry observability, smart retries.' },

@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { Prisma } from '@prisma/client';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { checkAndAwardBadge } from '../services/badgeService';
+import { getAIAdapter } from '../services/ai/aiAdapterFactory';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -160,6 +160,71 @@ router.get('/problems/:id/cases', requireInternalSecret, async (req, res) => {
     });
   } catch (err: any) {
     console.error('[Internal] Problem cases fetch error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /internal/embed-profiles
+ * Triggered by the nightly BullMQ worker to extract SkillScores and generate embeddings
+ * for modified user profiles.
+ */
+router.post('/embed-profiles', requireInternalSecret, async (req, res) => {
+  try {
+    // For MVP, just process up to 10 users that don't have embeddings or skills
+    // In production, you'd track a 'profileModifiedSinceLastEmbed' flag.
+    const users = await prisma.user.findMany({
+      where: { role: 'STUDENT' },
+      take: 10,
+    });
+
+    const aiAdapter = getAIAdapter();
+    let processed = 0;
+
+    for (const user of users) {
+      // 1. Extract Skills
+      const prompt = `Extract skills for a software engineering student named ${user.name}. Domain: ${user.domain}. Format as SkillScore[]`;
+      const skillsData = await aiAdapter.generateJSON<any[]>(prompt);
+      
+      if (Array.isArray(skillsData) && skillsData.length > 0) {
+        // Delete existing skills
+        await prisma.skillScore.deleteMany({ where: { userId: user.id } });
+        
+        // Insert new skills
+        for (const skillItem of skillsData) {
+          if (skillItem.skill && typeof skillItem.score === 'number') {
+            await prisma.skillScore.create({
+              data: {
+                userId: user.id,
+                skill: String(skillItem.skill),
+                score: Number(skillItem.score),
+                category: String(skillItem.category || 'core'),
+              }
+            });
+          }
+        }
+      }
+
+      // 2. Generate Embedding
+      const profileText = `Name: ${user.name}, Domain: ${user.domain}, Bio: Software Engineer. Skills: ${Array.isArray(skillsData) ? skillsData.map(s => s.skill).join(', ') : 'None'}`;
+      const embedding = await aiAdapter.generateEmbedding(profileText);
+      
+      if (embedding && embedding.length === 1536) {
+        // Use raw SQL to update the vector column
+        // Cast string representation to vector: '[0.1, 0.2, ...]'
+        const vectorString = `[${embedding.join(',')}]`;
+        await prisma.$executeRawUnsafe(
+          `UPDATE "User" SET "profileEmbedding" = $1::vector WHERE id = $2`,
+          vectorString,
+          user.id
+        );
+      }
+      processed++;
+    }
+
+    return res.json({ ok: true, processed });
+  } catch (err: any) {
+    console.error('[Internal] Embed profiles error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

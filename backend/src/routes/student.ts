@@ -42,6 +42,8 @@ const profileUpdateSchema = z.object({
     name: z.string().min(2, 'Name must be at least 2 characters long').optional(),
     mobileNumber: z.string().optional(),
     freezeProfile: z.boolean().optional(),
+    profilePublic: z.boolean().optional(),
+    githubUsername: z.string().optional(),
   }),
 });
 
@@ -53,16 +55,18 @@ router.put('/profile', requireAuth, validate(profileUpdateSchema), async (req: A
     const existingUser = await prisma.user.findUnique({ where: { id: userId } });
     if (!existingUser) return res.status(404).json({ error: 'User not found' });
 
-    if (existingUser.profileFrozen) {
-      return res.status(403).json({ error: 'Profile is frozen and cannot be updated.' });
+    const { name, mobileNumber, freezeProfile, profilePublic, githubUsername } = req.body;
+    
+    if (existingUser.profileFrozen && (name !== undefined || mobileNumber !== undefined)) {
+      return res.status(403).json({ error: 'Personal details are frozen and cannot be updated.' });
     }
 
-    const { name, mobileNumber, freezeProfile } = req.body;
-    
     const dataToUpdate: any = {};
     if (name !== undefined) dataToUpdate.name = name;
     if (mobileNumber !== undefined) dataToUpdate.mobileNumber = mobileNumber;
     if (freezeProfile) dataToUpdate.profileFrozen = true;
+    if (profilePublic !== undefined) dataToUpdate.profilePublic = profilePublic;
+    if (githubUsername !== undefined) dataToUpdate.githubUsername = githubUsername;
 
     const updatedUser = await prisma.user.update({
       where: { id: userId },
@@ -71,6 +75,7 @@ router.put('/profile', requireAuth, validate(profileUpdateSchema), async (req: A
         id: true, name: true, email: true,
         domain: true, tier: true, xp: true,
         profileFrozen: true, mobileNumber: true,
+        profilePublic: true, githubUsername: true,
       },
     });
 

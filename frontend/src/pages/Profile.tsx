@@ -32,6 +32,7 @@ import {
   Cpu,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, Radar, Tooltip as RechartsTooltip } from 'recharts';
 import { toast } from 'sonner';
 import BadgeCard, { BadgeData } from '../components/BadgeCard';
 import { useAuth } from '../context/AuthContext';
@@ -82,10 +83,16 @@ function StudentCandidateProfileView() {
   const [fullName, setFullName] = useState(user?.name || 'Demo Student');
   const [mobileNumber, setMobileNumber] = useState((user as any)?.mobileNumber || '+91 98765 43210');
 
+  const [profilePublic, setProfilePublic] = useState((user as any)?.profilePublic ?? true);
+  const [skillScores, setSkillScores] = useState<any[]>((user as any)?.skillScores || []);
+
   useEffect(() => {
     if (user) {
       if (user.name) setFullName(user.name);
       if ((user as any).mobileNumber) setMobileNumber((user as any).mobileNumber);
+      if ((user as any).profilePublic !== undefined) setProfilePublic((user as any).profilePublic);
+      if ((user as any).skillScores) setSkillScores((user as any).skillScores);
+      if ((user as any).githubUsername) setGithubUrl(`https://github.com/${(user as any).githubUsername}`);
     }
   }, [user]);
   const [dob, setDob] = useState('2003-05-15');
@@ -190,12 +197,31 @@ function StudentCandidateProfileView() {
           freezeProfile: true, // Freeze the profile upon save
         });
         
-        // Let's pretend user state updates via a reload or we just notify them
-        // Ideally we'd call updateAuthUser, but a reload works too if no method is available
         window.location.reload(); 
         toast.success(`${sectionName} updated and frozen successfully!`);
       } catch (err: any) {
         toast.error(err.response?.data?.error || 'Failed to update profile');
+      } finally {
+        setSaving(false);
+      }
+    } else if (sectionName === 'Preferences') {
+      try {
+        setSaving(true);
+        await api.put('/students/profile', { profilePublic });
+        toast.success(`Profile visibility updated!`);
+      } catch (err: any) {
+        toast.error(err.response?.data?.error || 'Failed to update preferences');
+      } finally {
+        setSaving(false);
+      }
+    } else if (sectionName === 'Social Links') {
+      try {
+        setSaving(true);
+        const githubUsername = githubUrl.split('/').pop();
+        await api.put('/students/profile', { githubUsername });
+        toast.success(`Social links updated!`);
+      } catch (err: any) {
+        toast.error(err.response?.data?.error || 'Failed to update social links');
       } finally {
         setSaving(false);
       }
@@ -424,8 +450,148 @@ function StudentCandidateProfileView() {
         </div>
       )}
 
+      {/* Tab: Skills (S12) */}
+      {activeTab === 'skills' && (
+        <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-sm space-y-6">
+          <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
+            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Code2 className="h-5 w-5 text-purple-500" /> AI Assessed Skills Graph
+            </h2>
+          </div>
+          <div className="grid lg:grid-cols-2 gap-8 items-center">
+            {/* Radar Chart */}
+            <div className="h-80 w-full flex justify-center items-center">
+              {skillScores.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadarChart cx="50%" cy="50%" outerRadius="70%" data={skillScores}>
+                    <PolarGrid stroke="#334155" />
+                    <PolarAngleAxis dataKey="skill" tick={{ fill: theme === 'dark' ? '#cbd5e1' : '#475569', fontSize: 12 }} />
+                    <Radar name="Skill Score" dataKey="score" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.6} />
+                    <RechartsTooltip />
+                  </RadarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="text-slate-500 text-sm italic text-center">
+                  AI embeddings for your profile are processing.<br />Check back later for your skill radar.
+                </div>
+              )}
+            </div>
+            
+            {/* Chips */}
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">Core Strengths</h3>
+                <div className="flex gap-2 flex-wrap">
+                  {skillScores.filter(s => s.category === 'strength').length > 0 ? (
+                    skillScores.filter(s => s.category === 'strength').map((s, i) => (
+                      <span key={i} className="rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300 px-3 py-1 text-xs font-bold border border-emerald-200 dark:border-emerald-500/30 shadow-sm">
+                        {s.skill}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-xs text-slate-400">Processing strengths...</span>
+                  )}
+                </div>
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">Interests & Exploring</h3>
+                <div className="flex gap-2 flex-wrap">
+                  {skillScores.filter(s => s.category === 'interest').length > 0 ? (
+                    skillScores.filter(s => s.category === 'interest').map((s, i) => (
+                      <span key={i} className="rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-500/20 dark:text-indigo-300 px-3 py-1 text-xs font-bold border border-indigo-200 dark:border-indigo-500/30 shadow-sm">
+                        {s.skill}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-xs text-slate-400">Processing interests...</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Social */}
+      {activeTab === 'social' && (
+        <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-sm space-y-6">
+          <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
+            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Link2 className="h-5 w-5 text-sky-500" /> Social Links & Portfolios
+            </h2>
+          </div>
+          <div className="space-y-4 max-w-xl">
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">GitHub Profile URL</label>
+              <input
+                type="url"
+                value={githubUrl}
+                onChange={(e) => setGithubUrl(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-4 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
+                placeholder="https://github.com/username"
+              />
+            </div>
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => handleSave('Social Links')}
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-brand-500 transition disabled:opacity-50"
+              >
+                <Save className="h-4 w-4" /> Save Links
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Preferences */}
+      {activeTab === 'preferences' && (
+        <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-sm space-y-6">
+          <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
+            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Settings className="h-5 w-5 text-slate-500" /> Visibility Preferences
+            </h2>
+          </div>
+          <div className="max-w-xl space-y-6">
+            <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Public Profile</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Allow recruiters and other students to view your verified skills, badges, and radar chart.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setProfilePublic(!profilePublic);
+                  // We could auto-save here, but we'll let them click save or auto-trigger handleSave
+                }}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  profilePublic ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-700'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    profilePublic ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+            
+            <div className="flex justify-end">
+              <button
+                onClick={() => handleSave('Preferences')}
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-brand-500 transition disabled:opacity-50"
+              >
+                <Save className="h-4 w-4" /> Save Preferences
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Fallback tabs preview */}
-      {activeTab !== 'personal' && activeTab !== 'achievements' && activeTab !== 'resume' && (
+      {activeTab !== 'personal' && activeTab !== 'achievements' && activeTab !== 'resume' && activeTab !== 'skills' && activeTab !== 'social' && activeTab !== 'preferences' && (
         <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-sm space-y-4">
           <h2 className="text-base font-bold text-slate-900 dark:text-white capitalize">{activeTab} Settings</h2>
           <p className="text-xs text-slate-400">Candidate profile settings saved.</p>
