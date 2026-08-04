@@ -141,6 +141,33 @@ router.get('/profile/resume-upload-url', requireAuth, async (req: AuthenticatedR
   }
 });
 
+// ─── PUT /api/students/profile/local-upload (SHIM FOR S3) ──────────────────
+import fs from 'fs';
+import path from 'path';
+import express from 'express';
+
+router.put('/profile/local-upload', express.raw({ type: '*/*', limit: '10mb' }), async (req, res) => {
+  try {
+    const key = req.query.key as string;
+    if (!key) return res.status(400).json({ error: 'Missing key' });
+    
+    // Create uploads directory if it doesn't exist
+    const uploadsDir = path.join(process.cwd(), 'uploads');
+    const targetDir = path.join(uploadsDir, path.dirname(key));
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+    
+    const filePath = path.join(uploadsDir, key);
+    fs.writeFileSync(filePath, req.body);
+    
+    return res.status(200).send('OK');
+  } catch (err) {
+    console.error('Local upload failed:', err);
+    return res.status(500).json({ error: 'Local upload failed' });
+  }
+});
+
 // ─── POST /api/students/profile/parse-resume ───────────────────────────────
 import { getObjectBuffer } from '../services/s3';
 import pdfParse from 'pdf-parse';

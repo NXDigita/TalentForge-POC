@@ -140,9 +140,9 @@ function StudentCandidateProfileView() {
       const parseRes = await api.post('/students/profile/parse-resume', { s3Key });
       setParsedData(parseRes.data.data);
       setResumeState('review');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      toast.error('Resume parsing failed');
+      toast.error(err.response?.data?.error || 'Resume parsing failed');
       setResumeState('upload');
     }
   };
@@ -174,9 +174,9 @@ function StudentCandidateProfileView() {
         resumeS3Key: formData.resumeS3Key
       });
       toast.success('Profile saved successfully!');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      toast.error('Failed to save profile');
+      toast.error(err.response?.data?.error || 'Failed to save profile');
     } finally {
       setSaving(false);
     }

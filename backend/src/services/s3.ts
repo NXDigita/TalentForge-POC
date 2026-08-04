@@ -23,18 +23,8 @@ export const s3 = new S3Client({
  * @param expiresIn Time in seconds until the URL expires (default 15 mins)
  */
 export async function getUploadUrl(key: string, contentType: string, expiresIn = 900): Promise<string> {
-  const command = new PutObjectCommand({
-    Bucket: s3Bucket,
-    Key: key,
-    ContentType: contentType,
-  });
-  
-  // Prevent AWS SDK v3 from adding payload checksums to the presigned URL
-  // which causes MinIO to reject the actual upload due to a checksum mismatch.
-  return getSignedUrl(s3, command, { 
-    expiresIn,
-    unhoistableHeaders: new Set(['x-amz-sdk-checksum-algorithm', 'x-amz-checksum-crc32'])
-  });
+  // SHIM: Bypass S3/MinIO and return a local API endpoint for POC
+  return `/api/students/profile/local-upload?key=${encodeURIComponent(key)}`;
 }
 
 /**
@@ -71,21 +61,14 @@ export async function uploadBuffer(key: string, buffer: Buffer, contentType: str
  * Download a file from S3 and return its contents as a Buffer
  */
 export async function getObjectBuffer(key: string): Promise<Buffer> {
-  const command = new GetObjectCommand({
-    Bucket: s3Bucket,
-    Key: key,
-  });
-
-  const response = await s3.send(command);
-  const stream = response.Body as any;
-  if (!stream) {
-    throw new Error('No body returned from S3');
+  // SHIM: Read from local uploads folder instead of S3
+  const fs = require('fs');
+  const path = require('path');
+  const localPath = path.join(process.cwd(), 'uploads', key);
+  
+  if (fs.existsSync(localPath)) {
+    return fs.readFileSync(localPath);
   }
-
-  return new Promise<Buffer>((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    stream.on('data', (chunk: any) => chunks.push(Buffer.from(chunk)));
-    stream.on('error', reject);
-    stream.on('end', () => resolve(Buffer.concat(chunks)));
-  });
+  
+  throw new Error(`File not found locally: ${localPath}`);
 }

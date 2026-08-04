@@ -1,5 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import fs from 'fs';
+import path from 'path';
 
 const prisma = new PrismaClient();
 
@@ -281,7 +283,35 @@ Design a high-scale Load Balancer supporting **Weighted Round-Robin**, **Health 
     },
   });
 
-  console.log('✅ Seed complete — 8 comprehensive problems created (incl. Flagship Load Balancer).');
+  // ─── AI Generated Problems Seed ───────────────────────────────────────────
+  const aiSeedsPath = path.join(__dirname, 'ai-seeds.json');
+  if (fs.existsSync(aiSeedsPath)) {
+    console.log('🤖 Found ai-seeds.json! Seeding previously exported AI problems...');
+    try {
+      const aiProblems = JSON.parse(fs.readFileSync(aiSeedsPath, 'utf-8'));
+      for (const p of aiProblems) {
+        await prisma.problem.upsert({
+          where: { slug: p.slug },
+          update: {},
+          create: {
+            title: p.title,
+            slug: p.slug,
+            tier: p.tier,
+            domain: p.domain,
+            reward: p.reward,
+            description: p.description,
+            publicTestCases: p.publicTestCases,
+            hiddenTestCases: p.hiddenTestCases,
+          }
+        });
+      }
+      console.log(`✅ Seeded ${aiProblems.length} AI-generated problems.`);
+    } catch (err) {
+      console.error('⚠️ Failed to seed AI problems from ai-seeds.json:', err);
+    }
+  }
+
+  console.log('✅ Seed complete — comprehensive problems and AI problems created.');
 }
 
 main()

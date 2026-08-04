@@ -6,7 +6,8 @@
     "dev": "tsx watch src/app.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/app.js",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "export-ai-problems": "tsx prisma/export-ai-problems.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.554.0",

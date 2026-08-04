@@ -24,11 +24,21 @@ export class AIAdapterFactory {
         break;
       case 'claude':
       case 'anthropic':
-        this.instance = new ClaudeAdapter();
+        if (!process.env.ANTHROPIC_API_KEY) {
+          console.warn('[AIAdapterFactory] Missing ANTHROPIC_API_KEY. Falling back to MockAdapter for POC.');
+          this.instance = new MockAdapter();
+        } else {
+          this.instance = new ClaudeAdapter();
+        }
         break;
       case 'gemini':
       case 'google':
-        this.instance = new GeminiAdapter();
+        if (!process.env.GEMINI_API_KEY && !process.env.GOOGLE_GENAI_API_KEY) {
+          console.warn('[AIAdapterFactory] Missing GEMINI_API_KEY. Falling back to MockAdapter for POC.');
+          this.instance = new MockAdapter();
+        } else {
+          this.instance = new GeminiAdapter();
+        }
         break;
       case 'mock':
       default:

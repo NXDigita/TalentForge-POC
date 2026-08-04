@@ -15,7 +15,8 @@
     "build:backend": "npm --workspace backend run build",
     "build:worker": "npm --workspace worker run build",
     "build:frontend": "npm --workspace frontend run build",
-    "build": "npm run build:backend && npm run build:worker && npm run build:frontend"
+    "build": "npm run build:backend && npm run build:worker && npm run build:frontend",
+    "export-ai-problems": "npm --workspace backend run export-ai-problems"
   },
   "devDependencies": {
     "concurrently": "^8.0.0"
