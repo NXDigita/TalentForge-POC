@@ -420,11 +420,18 @@ router.post('/geo', requireAuth, async (req: AuthenticatedRequest, res) => {
 router.put('/onboarding', requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user?.userId;
-    const { selectedDomain } = req.body;
+    const { selectedDomain, college, degree, graduationYear } = req.body;
     const user = await prisma.user.update({
       where: { id: userId },
-      data: { selectedDomain, onboardingComplete: true, domain: selectedDomain || 'cse' },
-      select: { id: true, email: true, name: true, role: true, selectedDomain: true, onboardingComplete: true },
+      data: { 
+        selectedDomain, 
+        college,
+        degree,
+        graduationYear,
+        onboardingComplete: true, 
+        domain: selectedDomain || 'cse' 
+      },
+      select: { id: true, email: true, name: true, role: true, selectedDomain: true, onboardingComplete: true, college: true, degree: true, graduationYear: true },
     });
     return res.json({ ok: true, user });
   } catch (err) {

@@ -40,6 +40,11 @@ model User {
   // Selected domain (onboarding step)
   selectedDomain        String?
   onboardingComplete    Boolean   @default(false)
+  
+  // Academic Details
+  college               String?
+  degree                String?
+  graduationYear        String?
 
   // Profile data & freeze
   profileFrozen         Boolean   @default(false)

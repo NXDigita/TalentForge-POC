@@ -30,7 +30,12 @@ export default function OnboardingModal({ onComplete, userName = 'Candidate' }: 
     if (!selectedDomain) return;
     setLoading(true);
     try {
-      await api.put('/auth/onboarding', { selectedDomain });
+      await api.put('/auth/onboarding', { 
+        selectedDomain,
+        college,
+        degree,
+        graduationYear: year
+      });
     } catch (e) {
       // Best-effort; proceed even if API fails
       console.warn('[Onboarding] API call failed, proceeding locally');
