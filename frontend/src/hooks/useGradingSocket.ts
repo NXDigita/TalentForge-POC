@@ -10,6 +10,7 @@ export interface GradingResult {
   total?: number;
   status?: string;
   feedback?: string;
+  badgeId?: string;
 }
 
 export type SubmissionStatus = 'idle' | 'preparing' | 'queued' | 'running' | 'completed' | 'failed' | 'BLOCKED';
@@ -122,7 +123,8 @@ export function useGradingSocket(submissionId: string | null) {
       setStatus('completed');
       stopPollingFallback();
       if (data.scores) {
-        setResult(data.scores);
+        const fullResult = { ...data.scores, badgeId: data.badgeId };
+        setResult(fullResult);
         setLogs((prev) => [
           ...prev,
           `[Success] Test suite complete! Total Verified Score: ${data.scores.total}/100`,

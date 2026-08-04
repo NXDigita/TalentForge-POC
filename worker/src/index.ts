@@ -15,7 +15,7 @@
  */
 
 import 'dotenv/config';
-import { Worker, Job, UnrecoverableError } from 'bullmq';
+import { Worker, Job, UnrecoverableError, Queue } from 'bullmq';
 import IORedis from 'ioredis';
 import { Emitter } from '@socket.io/redis-emitter';
 import { runCodeInSandbox }   from './grader/sandbox';
@@ -316,8 +316,18 @@ const worker = new Worker<GradeJobData>(
         }),
       });
 
+      let awardedBadgeId = undefined;
       if (!patchRes.ok) {
         console.warn(`[Worker] Failed to patch submission ${submissionId}:`, await patchRes.text());
+      } else {
+        try {
+          const patchData = await patchRes.json();
+          if (patchData.badge) {
+            awardedBadgeId = patchData.badge.verifyId;
+          }
+        } catch (e) {
+          console.error(`[Worker] Failed to parse patch response:`, e);
+        }
       }
 
       // Emit completion event — frontend listens for this to render score cards
@@ -330,6 +340,7 @@ const worker = new Worker<GradeJobData>(
         },
         feedback: scores.feedback,
         status: 'completed',
+        badgeId: awardedBadgeId,
       });
 
       console.log(`[Worker] Job ${job.id} done. Total score: ${scores.total}`);

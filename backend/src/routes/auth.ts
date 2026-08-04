@@ -285,7 +285,7 @@ router.post('/oauth/github', async (req, res) => {
         headers: { Authorization: `Bearer ${tokenData.access_token}` },
       });
       const emails = await emailRes.json() as Array<{ email: string; primary: boolean; verified: boolean }>;
-      email = emails.find(e => e.primary && e.verified)?.email ?? null;
+      email = emails.find(e => e.primary && e.verified)?.email ?? undefined;
     }
 
     if (!email) return res.status(400).json({ error: 'GitHub account has no verified email' });

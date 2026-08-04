@@ -382,7 +382,7 @@ export default function ProblemDetail() {
                 onClose={() => setShowCelebrationModal(false)}
                 badgeTitle={`${problem.title} Verified Badge`}
                 score={result?.total ?? (result as any)?.scores?.total ?? 98}
-                badgeId={submissionId || undefined}
+                badgeId={result?.badgeId || undefined}
               />
             )}
             <ResultsPanel status={status} result={result} logs={logs} expertReview={expertReview} />

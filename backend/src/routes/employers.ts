@@ -286,7 +286,7 @@ router.post('/smart-match', requireAuth, async (req: AuthenticatedRequest, res) 
 
       return {
         id: m.id,
-        name: m.isAnonymized ? \`Anonymous Pioneer #\${m.id.slice(0, 4).toUpperCase()}\` : m.name,
+        name: m.isAnonymized ? `Anonymous Pioneer #${m.id.slice(0, 4).toUpperCase()}` : m.name,
         email: m.email,
         domain: (m.domain || 'CSE').toUpperCase(),
         tier: m.tier || 'Explorer',

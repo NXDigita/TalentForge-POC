@@ -62,3 +62,25 @@ export async function uploadBuffer(key: string, buffer: Buffer, contentType: str
   return `${endpoint}/${s3Bucket}/${key}`;
 }
 
+/**
+ * Download a file from S3 and return its contents as a Buffer
+ */
+export async function getObjectBuffer(key: string): Promise<Buffer> {
+  const command = new GetObjectCommand({
+    Bucket: s3Bucket,
+    Key: key,
+  });
+
+  const response = await s3.send(command);
+  const stream = response.Body as any;
+  if (!stream) {
+    throw new Error('No body returned from S3');
+  }
+
+  return new Promise<Buffer>((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    stream.on('data', (chunk: any) => chunks.push(Buffer.from(chunk)));
+    stream.on('error', reject);
+    stream.on('end', () => resolve(Buffer.concat(chunks)));
+  });
+}
