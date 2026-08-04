@@ -99,7 +99,11 @@ export default function ProblemBoard() {
       try {
         setLoading(true);
         const data = await getProblems();
-        setProblems(data);
+        
+        // Remove duplicates by slug
+        const uniqueProblems = data.filter((v, i, a) => a.findIndex(t => (t.slug === v.slug)) === i);
+        
+        setProblems(uniqueProblems);
       } catch (err: any) {
         console.error('Failed to load problems:', err);
         setError('Unable to connect to problem database.');

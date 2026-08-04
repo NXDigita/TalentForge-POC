@@ -176,7 +176,7 @@ async function runGrader(
 }> {
   const { submissionId, problemId, s3Key, language } = job.data;
 
-  const backendUrl = process.env.BACKEND_INTERNAL_URL ?? 'http://localhost:5001';
+  const backendUrl = process.env.BACKEND_INTERNAL_URL ?? 'http://127.0.0.1:5001';
   const secret     = process.env.INTERNAL_SECRET      ?? 'tf-internal';
 
   // 1. Mark as running

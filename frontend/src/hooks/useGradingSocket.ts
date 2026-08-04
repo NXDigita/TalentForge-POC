@@ -104,7 +104,12 @@ export function useGradingSocket(submissionId: string | null) {
       setLogs((prev) => [...prev, `[Socket] Connected to live channel submission:${submissionId}`]);
     });
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', (reason) => {
+      // Don't trigger fallback if we intentionally disconnected (e.g., unmount)
+      if (reason === 'io client disconnect') {
+        setIsConnected(false);
+        return;
+      }
       setIsConnected(false);
       startPollingFallback();
     });
@@ -141,32 +146,10 @@ export function useGradingSocket(submissionId: string | null) {
       queryClient.invalidateQueries({ queryKey: ['submissions'] });
     });
 
-    // Fallback simulation timer for standalone frontend dev
-    const fallbackTimer = setTimeout(() => {
-      setStatus((current) => {
-        if (current === 'queued' || current === 'running') {
-          const mockScores: GradingResult = {
-            correctness: 100,
-            complexity: 95,
-            style: 100,
-            total: 98,
-          };
-          setResult(mockScores);
-          setLogs((prev) => [
-            ...prev,
-            '[Sandbox] Container evaluation complete!',
-            `[Success] Total Verified Score: ${mockScores.total}/100`,
-          ]);
-          queryClient.invalidateQueries({ queryKey: ['submissions'] });
-          return 'completed';
-        }
-        return current;
-      });
-    }, 2500);
-
     return () => {
-      clearTimeout(fallbackTimer);
       stopPollingFallback();
+      // Remove listeners so they don't fire during cleanup
+      socket.off('disconnect');
       socket.disconnect();
     };
   }, [submissionId, queryClient]);
