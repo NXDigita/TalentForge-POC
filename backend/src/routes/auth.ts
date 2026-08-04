@@ -36,7 +36,38 @@ const loginSchema = z.object({
 const refreshSchema = z.object({
   body: z.object({
     refreshToken: z.string({ required_error: 'Refresh token is required' }),
-  }),
+  }).strict(),
+});
+
+const employerRegisterSchema = z.object({
+  body: z.object({
+    email: z.string().email(),
+    password: z.string().min(8),
+    name: z.string().min(2),
+    company: z.string().optional(),
+  }).strict(),
+});
+
+const githubOAuthSchema = z.object({
+  body: z.object({
+    code: z.string({ required_error: 'GitHub OAuth code required' }),
+  }).strict(),
+});
+
+const linkedinOAuthSchema = z.object({
+  body: z.object({
+    code: z.string({ required_error: 'LinkedIn OAuth code required' }),
+    redirectUri: z.string().optional(),
+  }).strict(),
+});
+
+const onboardingSchema = z.object({
+  body: z.object({
+    selectedDomain: z.string().optional(),
+    college: z.string().optional(),
+    degree: z.string().optional(),
+    graduationYear: z.string().optional(),
+  }).strict(),
 });
 
 // Helper: Issue Tokens
@@ -51,12 +82,9 @@ async function issueTokens(userId: string, role: string = 'STUDENT') {
 }
 
 // ─── POST /api/auth/register-employer ───────────────────────────────────────
-router.post('/register-employer', async (req, res) => {
+router.post('/register-employer', validate(employerRegisterSchema), async (req, res) => {
   try {
     const { email, password, name, company } = req.body;
-    if (!email || !password || !name) {
-      return res.status(400).json({ error: 'Email, password, and name are required' });
-    }
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
@@ -252,10 +280,9 @@ router.get(
 
 // ─── POST /api/auth/oauth/github ─────────────────────────────────────────────
 // Exchange GitHub OAuth code for user profile and JWT
-router.post('/oauth/github', async (req, res) => {
+router.post('/oauth/github', validate(githubOAuthSchema), async (req, res) => {
   try {
     const { code } = req.body;
-    if (!code) return res.status(400).json({ error: 'GitHub OAuth code required' });
 
     // Exchange code for access token
     const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
@@ -325,10 +352,9 @@ router.post('/oauth/github', async (req, res) => {
 
 // ─── POST /api/auth/oauth/linkedin ───────────────────────────────────────────
 // Exchange LinkedIn OAuth code for user profile and JWT
-router.post('/oauth/linkedin', async (req, res) => {
+router.post('/oauth/linkedin', validate(linkedinOAuthSchema), async (req, res) => {
   try {
     const { code, redirectUri } = req.body;
-    if (!code) return res.status(400).json({ error: 'LinkedIn OAuth code required' });
 
     const clientId = process.env.LINKEDIN_CLIENT_ID;
     const clientSecret = process.env.LINKEDIN_CLIENT_SECRET;
@@ -417,7 +443,7 @@ router.post('/geo', requireAuth, async (req: AuthenticatedRequest, res) => {
 
 // ─── PUT /api/auth/onboarding ─────────────────────────────────────────────────
 // Mark onboarding complete and set selected domain
-router.put('/onboarding', requireAuth, async (req: AuthenticatedRequest, res) => {
+router.put('/onboarding', requireAuth, validate(onboardingSchema), async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user?.userId;
     const { selectedDomain, college, degree, graduationYear } = req.body;

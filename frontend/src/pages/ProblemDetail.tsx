@@ -347,6 +347,11 @@ export default function ProblemDetail() {
           <Panel defaultSize={55} minSize={30} className="flex flex-col bg-slate-950">
             {/* Editor Area */}
             <div className="flex-1 relative">
+              {/* Mobile Read-Only Banner */}
+              <div className="md:hidden absolute inset-x-0 top-0 z-10 bg-amber-500/10 backdrop-blur-md border-b border-amber-500/30 p-2 flex items-center justify-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider">Mobile View: Read-Only Mode</span>
+              </div>
               <Suspense
                 fallback={
                   <div className="flex h-full items-center justify-center bg-slate-950">

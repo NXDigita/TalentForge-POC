@@ -205,7 +205,7 @@ export default function Leaderboard() {
 
       {/* Leaderboard Data Table matching screenshot */}
       <div className="rounded-3xl border border-slate-800/90 bg-slate-900/95 overflow-hidden shadow-2xl">
-        <table className="w-full text-left text-xs select-none">
+        <table className="hidden md:table w-full text-left text-xs select-none">
           <thead className="bg-slate-950/90 text-[10px] uppercase font-bold text-slate-500 border-b border-slate-800/80">
             <tr>
               <th className="py-4 px-6 w-20">RANK</th>
@@ -288,6 +288,69 @@ export default function Leaderboard() {
             )}
           </tbody>
         </table>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden flex flex-col divide-y divide-slate-800/60 font-medium select-none">
+          {loading ? (
+            <div className="py-12 text-center text-slate-500">
+              <div className="flex items-center justify-center gap-2 text-xs">
+                <Loader2 className="h-4 w-4 animate-spin text-brand-500" />
+                <span>Fetching live leaderboard state...</span>
+              </div>
+            </div>
+          ) : data?.items?.length === 0 ? (
+            <div className="py-12 text-center text-xs text-slate-500">
+              No candidates listed for this filter view.
+            </div>
+          ) : (
+            data?.items?.map((item) => (
+              <div
+                key={item.id}
+                className={`p-5 space-y-4 hover:bg-slate-800/50 transition ${
+                  item.isUser ? 'bg-blue-950/20' : ''
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-slate-500 font-bold text-sm">
+                      #{String(item.rank).padStart(2, '0')}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-300 font-bold text-xs border border-slate-700">
+                        {item.name.charAt(0)}
+                      </div>
+                      <span className="font-bold text-white tracking-tight text-sm">{item.name}</span>
+                    </div>
+                  </div>
+                  <div className="font-extrabold text-white font-mono text-sm">
+                    {item.score.toLocaleString()} XP
+                  </div>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3 flex-1 max-w-[60%]">
+                    <div className="h-1.5 flex-1 rounded-full bg-slate-800 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-blue-500"
+                        style={{ width: `${item.passRate}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-400 w-8 text-right font-mono">
+                      {item.passRate}%
+                    </span>
+                  </div>
+                  <div className="font-mono font-bold text-xs">
+                    {item.trend >= 0 ? (
+                      <span className="text-emerald-500">+{item.trend}</span>
+                    ) : (
+                      <span className="text-red-500">{item.trend}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
 
         {/* Bottom Pagination Controls matching screenshot requirements */}
         <div className="flex items-center justify-between border-t border-slate-800 px-6 py-4 bg-slate-950/80">

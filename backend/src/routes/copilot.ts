@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { z } from 'zod';
 import { requireAuth, AuthenticatedRequest } from '../middleware/authMiddleware';
 import { streamCopilotChat } from '../services/llmService';
 import { copilotRateLimiter } from '../middleware/rateLimiter';
@@ -12,11 +13,21 @@ router.post('/chat', requireAuth, copilotRateLimiter, async (req: AuthenticatedR
     const userId = req.user?.userId;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { messages, currentPage, mode = 'mentor' } = req.body;
+    const chatSchema = z.object({
+      messages: z.array(z.object({
+        role: z.enum(['user', 'assistant', 'system']),
+        content: z.string().max(2000), // Protect against large prompt injection
+      })).max(50),
+      currentPage: z.string().optional(),
+      mode: z.string().optional().default('mentor'),
+    });
 
-    if (!Array.isArray(messages)) {
-      return res.status(400).json({ error: 'messages must be an array' });
+    const parsed = chatSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid payload format', details: parsed.error.issues });
     }
+
+    const { messages, currentPage, mode } = parsed.data;
 
     const user = await prisma.user.findUnique({
       where: { id: userId },

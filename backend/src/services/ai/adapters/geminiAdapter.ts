@@ -95,9 +95,15 @@ export class GeminiAdapter implements AIAdapter {
       }
       contents.push(...formattedMessages);
 
+      const config: any = {};
+      if (options?.maxTokens) {
+        config.maxOutputTokens = options.maxTokens;
+      }
+
       const responseStream = await this.ai.models.generateContentStream({
         model: this.model,
         contents,
+        config,
       });
 
       for await (const chunk of responseStream) {

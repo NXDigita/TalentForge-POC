@@ -35,8 +35,36 @@ if (process.env.SENTRY_DSN) {
 }
 
 const app = express();
+
+if (process.env.SENTRY_DSN) {
+  const Sentry = require('@sentry/node');
+  // The request handler must be the first middleware on the app
+  app.use(Sentry.Handlers.requestHandler());
+  // TracingHandler creates a trace for every incoming request
+  app.use(Sentry.Handlers.tracingHandler());
+}
+
 app.use(helmet());
-app.use(cors({ origin: process.env.CORS_ORIGIN ?? 'http://localhost:5173' }));
+
+// CORS allowlist
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://beta.talentforge.com',
+  process.env.CORS_ORIGIN
+].filter(Boolean) as string[];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      var msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  }
+}));
+
 app.use(express.json());
 app.use(passport.initialize());
 
@@ -115,6 +143,12 @@ io.on('connection', (socket) => {
     console.log('Client disconnected from socket.io:', socket.id);
   });
 });
+
+if (process.env.SENTRY_DSN) {
+  const Sentry = require('@sentry/node');
+  // The error handler must be before any other error middleware and after all controllers
+  app.use(Sentry.Handlers.errorHandler());
+}
 
 // ─── Start server ─────────────────────────────────────────────────────────────
 const envPort = process.env.PORT ? parseInt(process.env.PORT, 10) : 5001;

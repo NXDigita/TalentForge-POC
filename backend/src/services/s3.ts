@@ -29,7 +29,12 @@ export async function getUploadUrl(key: string, contentType: string, expiresIn =
     ContentType: contentType,
   });
   
-  return getSignedUrl(s3, command, { expiresIn });
+  // Prevent AWS SDK v3 from adding payload checksums to the presigned URL
+  // which causes MinIO to reject the actual upload due to a checksum mismatch.
+  return getSignedUrl(s3, command, { 
+    expiresIn,
+    unhoistableHeaders: new Set(['x-amz-sdk-checksum-algorithm', 'x-amz-checksum-crc32'])
+  });
 }
 
 /**

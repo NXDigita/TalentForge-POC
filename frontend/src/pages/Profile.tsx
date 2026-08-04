@@ -73,583 +73,426 @@ export default function Profile() {
    ========================================================================== */
 function StudentCandidateProfileView() {
   const { user } = useAuth();
-  const { theme, toggleTheme } = useTheme();
+  const [activeTab, setActiveTab] = useState<CandidateTabType>('resume');
+  const [resumeState, setResumeState] = useState<'upload' | 'parsing' | 'review'>('upload');
+  const [parseStep, setParseStep] = useState('Extracting skills...');
+  const [badges, setBadges] = useState<BadgeData[]>([]);
 
-  const [activeTab, setActiveTab] = useState<CandidateTabType>('personal');
+  const [formData, setFormData] = useState({
+    name: user?.name || '',
+    mobileNumber: '',
+    githubUsername: '',
+    profilePublic: false,
+    freezeProfile: false,
+  });
+  
   const [saving, setSaving] = useState(false);
 
-  // 1. Personal Information State
-  const profileFrozen = (user as any)?.profileFrozen || false;
-  const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
-  const [fullName, setFullName] = useState(user?.name || 'Demo Student');
-  const [mobileNumber, setMobileNumber] = useState((user as any)?.mobileNumber || '+91 98765 43210');
-
-  const [profilePublic, setProfilePublic] = useState((user as any)?.profilePublic ?? true);
-  const [skillScores, setSkillScores] = useState<any[]>((user as any)?.skillScores || []);
-  const [applications, setApplications] = useState<any[]>([]);
-
   useEffect(() => {
-    async function fetchApplications() {
-      try {
-        const res = await api.get('/students/applications');
-        setApplications(res.data || []);
-      } catch (err) {
-        console.warn('Failed to fetch applications:', err);
-      }
-    }
-    if (user) {
-      fetchApplications();
-    }
-  }, [user]);
+    // Fetch profile data to pre-fill forms
+    api.get('/api/students/profile').then(res => {
+      setFormData(prev => ({
+        ...prev,
+        name: res.data.name || prev.name,
+        mobileNumber: res.data.mobileNumber || '',
+        githubUsername: res.data.githubUsername || '',
+        profilePublic: res.data.profilePublic || false,
+        freezeProfile: res.data.profileFrozen || false,
+      }));
+    }).catch(console.error);
 
-  useEffect(() => {
-    if (user) {
-      if (user.name) setFullName(user.name);
-      if ((user as any).mobileNumber) setMobileNumber((user as any).mobileNumber);
-      if ((user as any).profilePublic !== undefined) setProfilePublic((user as any).profilePublic);
-      if ((user as any).skillScores) setSkillScores((user as any).skillScores);
-      if ((user as any).githubUsername) setGithubUrl(`https://github.com/${(user as any).githubUsername}`);
-    }
-  }, [user]);
-  const [dob, setDob] = useState('2003-05-15');
-  const [gender, setGender] = useState('Male');
-  const [country, setCountry] = useState('India');
-  const [state, setState] = useState('Tamil Nadu');
-  const [city, setCity] = useState('Chennai');
-
-  // 2. Academic Information State
-  const [college, setCollege] = useState('Anna University (CEG Campus)');
-  const [degree, setDegree] = useState('B.Tech');
-  const [department, setDepartment] = useState(user?.domain === 'ece' ? 'ECE' : 'CSE');
-  const [yearOfStudy, setYearOfStudy] = useState('3rd Year');
-  const [graduationYear, setGraduationYear] = useState('2026');
-  const [rollNumber, setRollNumber] = useState('2021CSE1042');
-  const [cgpa, setCgpa] = useState('8.92');
-
-  // 3. Skills State
-  const [skills, setSkills] = useState([
-    { name: 'Python 3', level: 'Expert' },
-    { name: 'Data Structures & Algorithms', level: 'Expert' },
-    { name: 'TypeScript / React', level: 'Advanced' },
-    { name: 'Node.js & Express', level: 'Advanced' },
-    { name: 'PostgreSQL / Prisma', level: 'Intermediate' },
-    { name: 'Docker & Microservices', level: 'Intermediate' },
-  ]);
-  const [newSkillName, setNewSkillName] = useState('');
-  const [newSkillLevel, setNewSkillLevel] = useState('Advanced');
-
-  // 4. Achievements State
-  const [achievements, setAchievements] = useState([
-    { title: 'Top 5% Rank - TalentForge Algorithmic Sprint 2026', date: '2026-06-10', issuer: 'TalentForge' },
-    { title: 'LeetCode Knight Badge (Rating 1850+)', date: '2026-04-20', issuer: 'LeetCode' },
-    { title: '1st Place - National Inter-College Hackathon', date: '2025-11-15', issuer: 'Anna University' },
-  ]);
-  const [newAchTitle, setNewAchTitle] = useState('');
-  const [newAchIssuer, setNewAchIssuer] = useState('');
-
-  // 4b. AI Verified Badges State
-  const [userBadges, setUserBadges] = useState<BadgeData[]>([]);
-
-  useEffect(() => {
-    async function fetchBadges() {
-      try {
-        const badges = await getUserBadges();
-        if (badges && badges.length > 0) {
-          setUserBadges(badges);
-        } else {
-          setUserBadges([
-            {
-              id: 'sample-badge-1',
-              verifyId: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
-              title: 'Two Sum Algorithmic Mastery',
-              problemTitle: 'Two Sum',
-              score: 98,
-              status: 'AI_VERIFIED',
-              createdAt: '2026-07-20T10:00:00Z',
-            },
-            {
-              id: 'sample-badge-2',
-              verifyId: '7b94e102-881a-4d2c-9a4f-1234567890ab',
-              title: 'Distributed Systems Concurrency',
-              problemTitle: 'LRU Cache System',
-              score: 95,
-              status: 'EXPERT_VERIFIED',
-              createdAt: '2026-07-22T14:30:00Z',
-            },
-          ]);
-        }
-      } catch (err) {
-        console.warn('Failed to load badges:', err);
-      }
-    }
-    fetchBadges();
+    getUserBadges().then(setBadges).catch(console.error);
   }, []);
 
-  // 5. Resume State
-  const [resumeFileName, setResumeFileName] = useState<string | null>('Karthikeyan_Software_Engineer_Resume.pdf');
-  const [resumeUploadDate, setResumeUploadDate] = useState('2026-07-01');
+  const runParse = () => {
+    setResumeState('parsing');
+    const steps = ['Extracting skills...', 'Reading education & experience...', 'Matching against your solved challenges...', 'Scoring extraction confidence...'];
+    let i = 0;
+    setParseStep(steps[0]);
+    const t = setInterval(() => {
+      i++;
+      if (i < steps.length) setParseStep(steps[i]);
+    }, 460);
+    setTimeout(() => {
+      clearInterval(t);
+      setResumeState('review');
+    }, 1900);
+  };
 
-  // 6. Social Links State
-  const [githubUrl, setGithubUrl] = useState('https://github.com/tkarthikeyan');
-  const [linkedinUrl, setLinkedinUrl] = useState('https://linkedin.com/in/karthikeyan-dev');
-  const [portfolioUrl, setPortfolioUrl] = useState('https://karthikeyan.dev');
-  const [leetcodeHandle, setLeetcodeHandle] = useState('tkarthikeyan');
+  const handleDrop = (e: any) => {
+    e.preventDefault();
+    runParse();
+  };
 
-  // 8. Privacy & Security State
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-
-  // 9. Preferences State
-  const [recruiterVisible, setRecruiterVisible] = useState(true);
-
-  const handleSave = async (sectionName: string) => {
-    if (sectionName === 'Personal Information') {
-      try {
-        setSaving(true);
-        await api.put('/students/profile', {
-          name: fullName,
-          mobileNumber,
-          freezeProfile: true, // Freeze the profile upon save
-        });
-        
-        window.location.reload(); 
-        toast.success(`${sectionName} updated and frozen successfully!`);
-      } catch (err: any) {
-        toast.error(err.response?.data?.error || 'Failed to update profile');
-      } finally {
-        setSaving(false);
-      }
-    } else if (sectionName === 'Preferences') {
-      try {
-        setSaving(true);
-        await api.put('/students/profile', { profilePublic });
-        toast.success(`Profile visibility updated!`);
-      } catch (err: any) {
-        toast.error(err.response?.data?.error || 'Failed to update preferences');
-      } finally {
-        setSaving(false);
-      }
-    } else if (sectionName === 'Social Links') {
-      try {
-        setSaving(true);
-        const githubUsername = githubUrl.split('/').pop();
-        await api.put('/students/profile', { githubUsername });
-        toast.success(`Social links updated!`);
-      } catch (err: any) {
-        toast.error(err.response?.data?.error || 'Failed to update social links');
-      } finally {
-        setSaving(false);
-      }
-    } else {
-      setSaving(true);
-      setTimeout(() => {
-        setSaving(false);
-        toast.success(`${sectionName} updated successfully!`);
-      }, 500);
+  const handleSaveAll = async () => {
+    setSaving(true);
+    try {
+      await api.put('/api/students/profile', formData);
+      toast.success('Profile saved successfully!');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to save profile');
+    } finally {
+      setSaving(false);
     }
   };
-
-  const addSkill = () => {
-    if (!newSkillName.trim()) return;
-    setSkills([...skills, { name: newSkillName.trim(), level: newSkillLevel }]);
-    setNewSkillName('');
-    toast.success(`Skill "${newSkillName}" added!`);
-  };
-
-  const removeSkill = (index: number) => {
-    const updated = skills.filter((_, i) => i !== index);
-    setSkills(updated);
-    toast.info('Skill removed');
-  };
-
-  const addAchievement = () => {
-    if (!newAchTitle.trim()) return;
-    setAchievements([
-      ...achievements,
-      { title: newAchTitle.trim(), issuer: newAchIssuer || 'Self Verified', date: new Date().toISOString().split('T')[0] },
-    ]);
-    setNewAchTitle('');
-    setNewAchIssuer('');
-    toast.success('Achievement added!');
-  };
-
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfilePhoto(reader.result as string);
-        toast.success('Profile photo updated!');
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleResumeUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setResumeFileName(file.name);
-      setResumeUploadDate(new Date().toISOString().split('T')[0]);
-      toast.success(`Uploaded ${file.name} (Parsed ATS Score: 94%)`);
-    }
-  };
-
-  const tabs: { id: CandidateTabType; label: string; icon: any }[] = [
-    { id: 'personal', label: 'Personal', icon: User },
-    { id: 'academic', label: 'Academic', icon: GraduationCap },
-    { id: 'skills', label: 'Skills', icon: Code2 },
-    { id: 'achievements', label: 'Achievements', icon: Trophy },
-    { id: 'resume', label: 'Resume', icon: FileText },
-    { id: 'social', label: 'Social Links', icon: Link2 },
-    { id: 'blockchain', label: 'Blockchain', icon: ShieldCheck },
-    { id: 'applications', label: 'Applications', icon: Building },
-    { id: 'security', label: 'Security', icon: Lock },
-    { id: 'preferences', label: 'Preferences', icon: Settings },
-  ];
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 pb-16 font-sans text-slate-900 dark:text-slate-100">
-      {/* Hero Banner */}
-      <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-xl">
-        <div className="absolute -right-16 -top-16 h-72 w-72 rounded-full bg-brand-500/10 blur-3xl" />
-        <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-          <div className="flex items-center gap-5">
-            <div className="relative group">
-              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-600 text-2xl font-extrabold text-white shadow-xl border-2 border-white/20 overflow-hidden">
-                {profilePhoto ? (
-                  <img src={profilePhoto} alt="Profile" className="h-full w-full object-cover" />
-                ) : (
-                  fullName.charAt(0).toUpperCase()
-                )}
-              </div>
-              <label className="absolute inset-0 flex items-center justify-center rounded-2xl bg-slate-950/70 text-white opacity-0 group-hover:opacity-100 transition cursor-pointer text-xs font-bold gap-1">
-                <Upload className="h-4 w-4" /> Change
-                <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
-              </label>
-            </div>
+    <div className="font-sans text-tx antialiased min-h-screen pb-16 pt-8 relative">
+      {/* SHINY FLOATING SAVE BUTTON */}
+      <button 
+        onClick={handleSaveAll}
+        disabled={saving}
+        className="fixed bottom-8 right-8 z-50 flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-indigo to-indigo2 text-white font-bold shadow-[0_0_20px_rgba(109,92,240,0.5)] hover:shadow-[0_0_30px_rgba(109,92,240,0.8)] hover:scale-105 transition-all duration-300 disabled:opacity-70 disabled:hover:scale-100 disabled:shadow-none"
+      >
+        <Sparkles className={`h-5 w-5 ${saving ? 'animate-spin' : ''}`} />
+        {saving ? 'Saving...' : 'Save Profile'}
+      </button>
 
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">{fullName}</h1>
-                <span className="rounded-md bg-brand-50 dark:bg-brand-950/50 px-2.5 py-0.5 text-xs font-bold text-brand-600 dark:text-brand-400 border border-brand-200/50 dark:border-brand-800/40 uppercase">
-                  {department} • {degree}
+      <div className="max-w-[1120px] mx-auto px-6">
+        {/* profile header */}
+        <section className="rounded-2xl border border-line2 bg-gradient-to-br from-panel to-panel3 p-6 shadow-xl relative overflow-hidden">
+          <div className="absolute -right-20 -top-20 w-64 h-64 bg-indigo/10 blur-3xl rounded-full"></div>
+          <div className="flex flex-wrap items-center gap-5 relative z-10">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#6D5CF0] to-indigo grid place-items-center text-white text-2xl font-bold flex-none shadow-lg">
+              {formData.name?.[0]?.toUpperCase() || 'S'}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h2 className="text-[24px] font-extrabold tracking-tight text-white">{formData.name || 'Student'}</h2>
+                <span className="text-[11px] font-bold tracking-wide bg-indigo/15 text-indigo2 px-2 py-0.5 rounded uppercase">
+                  {(user as any)?.domain || 'CSE'} · B.TECH
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Candidate Student • Verified Technical & Psychometric Proof Profile
-              </p>
+              <p className="text-[13px] text-tx3 mt-1">Candidate profile — evidence recruiters can verify independently</p>
+            </div>
+            <div className="ml-auto flex items-center gap-2 px-3.5 py-2 rounded-lg border border-green/30 bg-green/5 text-green text-[12.5px] font-semibold verified-glow shadow-inner">
+              <span>◈</span> Polygon-verified
+              <span className="text-[11px] font-normal text-tx3 border-l border-line2 pl-2 ml-1">2 skills on-chain</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 rounded-2xl bg-emerald-500/10 px-4 py-2 text-xs font-bold text-emerald-500 border border-emerald-500/20 shadow-sm">
-            <ShieldCheck className="h-4 w-4" /> Polygon Verified Candidate
+          {/* proof strength meter */}
+          <div className="mt-6 pt-5 border-t border-line grid sm:grid-cols-[1fr,auto] gap-4 items-center relative z-10">
+            <div>
+              <div className="flex items-center justify-between text-[12.5px] mb-2">
+                <span className="text-tx2 font-medium">Proof strength</span>
+                <span className="text-tx3"><b className="text-tx font-mono text-white">40%</b> · 3 of 7 sections complete</span>
+              </div>
+              <div className="h-2 rounded-full bg-panel3 overflow-hidden shadow-inner border border-line/50">
+                <div className="h-full bg-gradient-to-r from-indigo to-indigo2" style={{width: '40%'}}></div>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 text-[12px] sm:justify-end">
+              <span className="flex items-center gap-1.5 text-green"><span>✓</span> 2 verified</span>
+              <span className="flex items-center gap-1.5 text-amber"><span>○</span> 6 claimed</span>
+              <span className="flex items-center gap-1.5 text-tx3"><span>—</span> 3 empty</span>
+            </div>
           </div>
-        </div>
-      </div>
+        </section>
 
-      {/* Tabs */}
-      <div className="overflow-x-auto pb-1 select-none">
-        <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3 min-w-max">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
+        {/* TAB BAR */}
+        <nav className="mt-5 flex flex-wrap gap-1.5">
+          {['personal', 'academic', 'skills', 'achievements', 'resume', 'social', 'blockchain', 'applications', 'preferences'].map(tab => {
+            const isActive = activeTab === tab;
+            let icon = '◍';
+            let dot = 'bg-line2';
+            if (tab === 'personal' || tab === 'academic' || tab === 'blockchain' || tab === 'social' || tab === 'preferences') { icon = '✓'; dot = 'bg-green'; }
+            if (tab === 'skills') { icon = '‹›'; dot = 'bg-amber'; }
+            if (tab === 'achievements') { icon = '♜'; dot = 'bg-green'; }
+            if (tab === 'resume') { icon = '▤'; }
+            if (tab === 'applications') { icon = '▦'; dot = ''; }
+            
             return (
               <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
-                  isActive
-                    ? 'bg-brand-600 text-white shadow-md shadow-brand-500/20'
-                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white border border-slate-200/80 dark:border-slate-800'
-                }`}
+                key={tab}
+                onClick={() => setActiveTab(tab as CandidateTabType)}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-[13px] transition-all duration-200 ${isActive ? 'bg-indigo border border-indigo text-white font-medium shadow-[0_0_15px_rgba(109,92,240,0.3)]' : 'bg-panel border border-line text-tx2 hover:border-line2 hover:text-white'}`}
               >
-                <Icon className="h-4 w-4" />
-                <span>{tab.label}</span>
+                <span>{icon}</span> <span className="capitalize">{tab}</span> {dot && <span className={`w-1.5 h-1.5 rounded-full ${dot}`}></span>}
               </button>
-            );
+            )
           })}
+        </nav>
+
+        {/* CONTENT */}
+        <div className="mt-5 grid lg:grid-cols-[1fr,300px] gap-5 items-start">
+          
+          {/* LEFT COLUMN */}
+          <div className="space-y-5">
+            {activeTab === 'resume' && (
+              <section className="rounded-2xl border border-line bg-panel p-6 shadow-md">
+                <div className="flex items-center gap-2.5 mb-1">
+                  <span className="text-indigo2 text-lg">▤</span>
+                  <h3 className="text-[16px] font-semibold text-white">Resume → verified skills</h3>
+                </div>
+                <p className="text-[13px] text-tx2 mb-5">Upload once. We extract your skills, education and experience — then you turn each claim into verified proof by solving a matching challenge.</p>
+
+                {resumeState === 'upload' && (
+                  <div>
+                    <div 
+                      onClick={runParse} 
+                      onDragOver={e => e.preventDefault()}
+                      onDrop={handleDrop}
+                      className="rounded-xl border-2 border-dashed border-line2 bg-panel3 px-6 py-10 text-center cursor-pointer hover:border-indigo/60 transition-colors group"
+                    >
+                      <div className="w-12 h-12 mx-auto rounded-xl bg-indigo/10 flex items-center justify-center text-indigo2 text-xl group-hover:bg-indigo/20 transition-colors">↑</div>
+                      <div className="text-[15px] font-semibold mt-3 text-white">Drag &amp; drop your resume, or <span className="text-indigo2 underline decoration-indigo/40">browse</span></div>
+                      <div className="text-[12px] text-tx3 mt-1.5">PDF or DOCX · up to 5 MB · ATS-formatted works best</div>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                      <div className="rounded-lg bg-panel3 border border-line px-3 py-2.5 text-center"><div className="text-indigo2 text-sm">‹›</div><div className="text-[11.5px] text-tx2 mt-1">Skills</div></div>
+                      <div className="rounded-lg bg-panel3 border border-line px-3 py-2.5 text-center"><div className="text-indigo2 text-sm">◎</div><div className="text-[11.5px] text-tx2 mt-1">Education</div></div>
+                      <div className="rounded-lg bg-panel3 border border-line px-3 py-2.5 text-center"><div className="text-indigo2 text-sm">▦</div><div className="text-[11.5px] text-tx2 mt-1">Experience</div></div>
+                      <div className="rounded-lg bg-panel3 border border-line px-3 py-2.5 text-center"><div className="text-indigo2 text-sm">◆</div><div className="text-[11.5px] text-tx2 mt-1">Projects</div></div>
+                    </div>
+
+                    <div className="mt-5 pt-4 border-t border-line">
+                      <div className="text-[11px] uppercase tracking-wide text-tx3 font-semibold mb-2.5">Or build from</div>
+                      <div className="flex flex-wrap gap-2.5">
+                        <button className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-panel2 border border-line2 text-[12.5px] text-tx2 hover:border-indigo hover:text-white transition-colors">
+                          <span>⌥</span> Connect GitHub <span className="text-tx3 text-[11px]">— auto-import projects &amp; languages</span>
+                        </button>
+                        <button className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-panel2 border border-line2 text-[12.5px] text-tx2 hover:border-indigo hover:text-white transition-colors">
+                          <span>in</span> Upload LinkedIn export
+                        </button>
+                        <button className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-panel2 border border-line2 text-[12.5px] text-tx2 hover:border-indigo hover:text-white transition-colors">
+                          <span>⌨</span> Paste text
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {resumeState === 'parsing' && (
+                  <div className="text-center py-12 animate-pulse">
+                    <div className="w-11 h-11 mx-auto rounded-full border-2 border-line2 border-t-indigo2 animate-spin"></div>
+                    <div className="text-[14px] font-medium mt-4 text-white">Reading <span className="font-mono text-cyan">{formData.name || 'student'}_resume.pdf</span></div>
+                    <div className="text-[12.5px] text-tx3 mt-1.5">{parseStep}</div>
+                  </div>
+                )}
+
+                {resumeState === 'review' && (
+                  <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-lg bg-green/5 border border-green/25 text-[12.5px] mb-5">
+                      <span className="text-green">✓</span>
+                      <span className="text-tx2">Parsed <b className="text-white">{formData.name || 'student'}_resume.pdf</b> — review below. Everything imports as <b className="text-amber">claimed</b> until you verify it.</span>
+                      <button onClick={() => setResumeState('upload')} className="ml-auto text-tx3 hover:text-tx text-[12px]">Start over</button>
+                    </div>
+
+                    <div className="text-[11px] uppercase tracking-wide text-tx3 font-semibold mb-2.5">Extracted skills · <span className="text-green">2 verified</span> · <span className="text-amber">6 to verify</span></div>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green/10 border border-green/30 text-[12.5px] text-green shadow-sm"><span>✓</span> Algorithms</span>
+                      <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green/10 border border-green/30 text-[12.5px] text-green shadow-sm"><span>✓</span> Data Structures</span>
+                      {['Python', 'React', 'Node.js', 'System Design', 'PostgreSQL', 'Docker'].map(skill => (
+                        <button key={skill} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-panel3 border border-line2 text-[12.5px] text-tx2 hover:border-indigo hover:text-white transition-colors group">
+                          <span className="text-amber">○</span> {skill} <span className="text-indigo2 text-[11px] opacity-0 group-hover:opacity-100 transition-opacity">verify →</span>
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="grid sm:grid-cols-2 gap-3 mt-5">
+                      <div className="rounded-lg bg-panel3 border border-line p-4 shadow-sm hover:border-line2 transition-colors">
+                        <div className="flex items-center justify-between"><span className="text-[11px] uppercase tracking-wide text-tx3 font-semibold">Education</span>
+                          <span className="text-[10.5px] text-green">✓ matches records</span></div>
+                        <div className="text-[13.5px] font-semibold mt-2 text-white">B.Tech, Computer Science</div>
+                        <div className="text-[12px] text-tx3">2022 – 2026 · CGPA 8.7</div>
+                      </div>
+                      <div className="rounded-lg bg-panel3 border border-line p-4 shadow-sm hover:border-line2 transition-colors">
+                        <div className="flex items-center justify-between"><span className="text-[11px] uppercase tracking-wide text-tx3 font-semibold">Experience</span>
+                          <span className="text-[10.5px] text-amber">○ unverified</span></div>
+                        <div className="text-[13.5px] font-semibold mt-2 text-white">SDE Intern · Fintech startup</div>
+                        <div className="text-[12px] text-tx3">Summer 2025 · 3 months</div>
+                      </div>
+                    </div>
+                    <p className="text-[11.5px] text-tx3 mt-2.5">↳ Extraction confidence 0.91 · fields you edit are flagged as self-reported to recruiters.</p>
+
+                    <div className="flex flex-wrap gap-2.5 mt-5">
+                      <button className="px-4 py-2.5 rounded-lg bg-indigo hover:bg-[#6C5AF0] text-white text-[13.5px] font-semibold flex items-center gap-2 shadow-[0_4px_14px_0_rgba(109,92,240,0.39)] transition-all">Verify skills by solving <span>→</span></button>
+                      <button className="px-4 py-2.5 rounded-lg border border-line2 text-tx2 hover:text-white hover:bg-panel3 text-[13.5px] transition-colors">Save claims to profile</button>
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {activeTab === 'personal' && (
+              <section className="rounded-2xl border border-line bg-panel p-6 shadow-md animate-in fade-in duration-300">
+                <div className="flex items-center gap-2.5 mb-6 border-b border-line pb-4">
+                  <User className="h-5 w-5 text-indigo2" />
+                  <h3 className="text-[16px] font-semibold text-white">Personal Information</h3>
+                </div>
+                <div className="grid gap-6 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-[12px] font-bold text-tx2 uppercase tracking-wide">Full Name</label>
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => setFormData({...formData, name: e.target.value})}
+                      disabled={formData.freezeProfile}
+                      className="w-full rounded-xl border border-line2 bg-panel3 px-4 py-3 text-[13px] text-white focus:outline-none focus:border-indigo focus:ring-1 focus:ring-indigo transition-all disabled:opacity-50"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[12px] font-bold text-tx2 uppercase tracking-wide">Email (Read-only)</label>
+                    <input
+                      type="email"
+                      value={user?.email || 'student@college.edu'}
+                      disabled
+                      className="w-full rounded-xl border border-line bg-panel/50 px-4 py-3 text-[13px] text-tx3 cursor-not-allowed"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[12px] font-bold text-tx2 uppercase tracking-wide">Mobile Number</label>
+                    <input
+                      type="text"
+                      value={formData.mobileNumber}
+                      onChange={(e) => setFormData({...formData, mobileNumber: e.target.value})}
+                      disabled={formData.freezeProfile}
+                      placeholder="+1 (555) 000-0000"
+                      className="w-full rounded-xl border border-line2 bg-panel3 px-4 py-3 text-[13px] text-white focus:outline-none focus:border-indigo focus:ring-1 focus:ring-indigo transition-all disabled:opacity-50"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[12px] font-bold text-tx2 uppercase tracking-wide">Primary Domain (Read-only)</label>
+                    <input
+                      type="text"
+                      value={(user as any)?.domain || 'Computer Science (CSE)'}
+                      disabled
+                      className="w-full rounded-xl border border-line bg-panel/50 px-4 py-3 text-[13px] text-tx3 cursor-not-allowed"
+                    />
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {activeTab === 'social' && (
+              <section className="rounded-2xl border border-line bg-panel p-6 shadow-md animate-in fade-in duration-300">
+                <div className="flex items-center gap-2.5 mb-6 border-b border-line pb-4">
+                  <Globe className="h-5 w-5 text-indigo2" />
+                  <h3 className="text-[16px] font-semibold text-white">Social &amp; Links</h3>
+                </div>
+                <div className="grid gap-6 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-[12px] font-bold text-tx2 uppercase tracking-wide flex items-center gap-1.5"><Github className="h-4 w-4" /> GitHub Username</label>
+                    <input
+                      type="text"
+                      value={formData.githubUsername}
+                      onChange={(e) => setFormData({...formData, githubUsername: e.target.value})}
+                      placeholder="e.g. octocat"
+                      className="w-full rounded-xl border border-line2 bg-panel3 px-4 py-3 text-[13px] text-white focus:outline-none focus:border-indigo focus:ring-1 focus:ring-indigo transition-all"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[12px] font-bold text-tx2 uppercase tracking-wide flex items-center gap-1.5"><Linkedin className="h-4 w-4" /> LinkedIn URL (WIP)</label>
+                    <input
+                      type="url"
+                      disabled
+                      placeholder="https://linkedin.com/in/..."
+                      className="w-full rounded-xl border border-line bg-panel/50 px-4 py-3 text-[13px] text-tx3 cursor-not-allowed"
+                    />
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {activeTab === 'preferences' && (
+              <section className="rounded-2xl border border-line bg-panel p-6 shadow-md animate-in fade-in duration-300">
+                <div className="flex items-center gap-2.5 mb-6 border-b border-line pb-4">
+                  <Settings className="h-5 w-5 text-indigo2" />
+                  <h3 className="text-[16px] font-semibold text-white">Profile Preferences</h3>
+                </div>
+                
+                <div className="space-y-6">
+                  <div className="flex items-start justify-between gap-4 p-4 rounded-xl border border-line2 bg-panel3">
+                    <div>
+                      <h4 className="text-[14px] font-bold text-white mb-1">Public Profile</h4>
+                      <p className="text-[12px] text-tx3">Allow recruiters to discover your verified proof profile in search results.</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer mt-1">
+                      <input type="checkbox" className="sr-only peer" checked={formData.profilePublic} onChange={(e) => setFormData({...formData, profilePublic: e.target.checked})} />
+                      <div className="w-11 h-6 bg-panel border border-line peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-tx3 peer-checked:after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo peer-checked:border-indigo"></div>
+                    </label>
+                  </div>
+                  
+                  <div className="flex items-start justify-between gap-4 p-4 rounded-xl border border-amber/20 bg-amber/5">
+                    <div>
+                      <h4 className="text-[14px] font-bold text-amber mb-1 flex items-center gap-2"><Lock className="h-4 w-4" /> Freeze Profile Data</h4>
+                      <p className="text-[12px] text-tx2">Lock your personal data. Once frozen, you cannot edit your name or mobile number. This is required for final verification.</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer mt-1">
+                      <input type="checkbox" className="sr-only peer" checked={formData.freezeProfile} onChange={(e) => setFormData({...formData, freezeProfile: e.target.checked})} />
+                      <div className="w-11 h-6 bg-panel border border-amber/30 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-tx3 peer-checked:after:bg-white after:border-amber/50 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber peer-checked:border-amber"></div>
+                    </label>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {activeTab === 'achievements' && (
+              <section className="rounded-2xl border border-line bg-panel p-6 shadow-md animate-in fade-in duration-300">
+                <div className="flex items-center gap-2.5 mb-6 border-b border-line pb-4">
+                  <Trophy className="h-5 w-5 text-amber" />
+                  <h3 className="text-[16px] font-semibold text-white">AI Verified Badges &amp; Certificates</h3>
+                </div>
+                {badges.length > 0 ? (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {badges.map((badge) => (
+                      <BadgeCard key={badge.id} badge={badge} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-10 border border-dashed border-line2 rounded-xl bg-panel3">
+                    <Award className="h-10 w-10 text-tx3 mx-auto mb-3 opacity-50" />
+                    <p className="text-[14px] text-tx2 font-medium">No verified badges yet</p>
+                    <p className="text-[12px] text-tx3 mt-1">Complete challenges to earn on-chain proofs!</p>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {!['resume', 'personal', 'social', 'preferences', 'achievements'].includes(activeTab) && (
+              <section className="rounded-2xl border border-line bg-panel p-6 flex items-center justify-center min-h-[400px] shadow-md animate-in fade-in duration-300">
+                <div className="text-center text-tx3 max-w-sm">
+                  <div className="w-16 h-16 rounded-full bg-panel3 border border-line2 flex items-center justify-center mx-auto mb-5 shadow-sm">
+                    <Code2 className="h-7 w-7 text-indigo2 opacity-70" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-white mb-2 capitalize">{activeTab} Space</h3>
+                  <p className="text-[13px] text-tx2 leading-relaxed">This section is currently being integrated with the new API schema. Data fields will appear here soon.</p>
+                </div>
+              </section>
+            )}
+          </div>
+
+          {/* RIGHT COLUMN */}
+          <aside className="space-y-4">
+            <section className="rounded-2xl border border-line bg-panel p-5 shadow-md">
+              <div className="text-[13.5px] font-semibold mb-1 text-white">Complete your proof profile</div>
+              <div className="text-[12px] text-tx3 mb-4">Recruiters filter by verified sections first.</div>
+              <ul className="space-y-2.5 text-[13px]">
+                <li className="flex items-center gap-2.5 text-tx"><span className="w-5 h-5 rounded-md bg-green/15 text-green flex items-center justify-center text-[11px]">✓</span> Personal</li>
+                <li className="flex items-center gap-2.5 text-tx"><span className="w-5 h-5 rounded-md bg-green/15 text-green flex items-center justify-center text-[11px]">✓</span> Academic</li>
+                <li className="flex items-center gap-2.5 text-tx"><span className="w-5 h-5 rounded-md bg-green/15 text-green flex items-center justify-center text-[11px]">✓</span> Blockchain wallet</li>
+                <li className="flex items-center gap-2.5 text-indigo2 font-medium"><span className="w-5 h-5 rounded-md bg-indigo/20 flex items-center justify-center text-[11px]">→</span> Resume</li>
+                <li className="flex items-center gap-2.5 text-tx3"><span className="w-5 h-5 rounded-md bg-panel3 border border-line flex items-center justify-center text-[11px]">○</span> Skills <span className="ml-auto text-[11px]">2 / 8 verified</span></li>
+                <li className="flex items-center gap-2.5 text-tx3"><span className="w-5 h-5 rounded-md bg-panel3 border border-line flex items-center justify-center text-[11px]">—</span> Achievements</li>
+                <li className="flex items-center gap-2.5 text-tx3"><span className="w-5 h-5 rounded-md bg-panel3 border border-line flex items-center justify-center text-[11px]">—</span> Social links</li>
+              </ul>
+            </section>
+
+            <section className="rounded-2xl border border-[#33285C] bg-gradient-to-b from-indigo/10 to-transparent p-5 shadow-md">
+              <div className="text-[13px] font-semibold text-indigo2 mb-2">How verification works</div>
+              <p className="text-[12.5px] text-tx2 leading-relaxed">A resume says what you <i>claim</i>. Solve a challenge in that skill and the claim becomes <b className="text-green">verified proof</b>, minted on-chain — so an employer can check it without taking your word for it.</p>
+              <div className="flex items-center gap-2 mt-3 text-[11.5px]">
+                <span className="px-2 py-1 rounded bg-amber/10 text-amber">claimed</span>
+                <span className="text-tx3">→ solve →</span>
+                <span className="px-2 py-1 rounded bg-green/10 text-green">verified ◈</span>
+              </div>
+            </section>
+          </aside>
         </div>
       </div>
-
-      {/* Tab 1: Personal */}
-      {activeTab === 'personal' && (
-        <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-sm space-y-6">
-          <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
-            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <User className="h-5 w-5 text-brand-500" /> Personal Information
-            </h2>
-          </div>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Full Name</label>
-              <input
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                disabled={profileFrozen}
-                className={`w-full rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none ${profileFrozen ? 'bg-slate-100 dark:bg-slate-900/50 cursor-not-allowed opacity-70' : 'bg-slate-50 dark:bg-slate-950'}`}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Email Address (Read Only)</label>
-              <input
-                type="email"
-                value={user?.email || 'student@college.edu'}
-                disabled
-                className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900/50 px-4 py-2.5 text-xs text-slate-500 cursor-not-allowed"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Mobile Number</label>
-              <input
-                type="text"
-                value={mobileNumber}
-                onChange={(e) => setMobileNumber(e.target.value)}
-                disabled={profileFrozen}
-                className={`w-full rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none ${profileFrozen ? 'bg-slate-100 dark:bg-slate-900/50 cursor-not-allowed opacity-70' : 'bg-slate-50 dark:bg-slate-950'}`}
-              />
-            </div>
-          </div>
-          {!profileFrozen && (
-            <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-800">
-              <button
-                onClick={() => handleSave('Personal Information')}
-                disabled={saving}
-                className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-brand-500/20 hover:bg-brand-500 transition disabled:opacity-50"
-              >
-                <Save className="h-4 w-4" /> Save & Freeze Personal Details
-              </button>
-            </div>
-          )}
-          {profileFrozen && (
-            <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-800">
-              <span className="text-xs font-bold text-emerald-500 flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4" /> Profile details frozen
-              </span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Tab 4: Achievements & Badges */}
-      {activeTab === 'achievements' && (
-        <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-sm space-y-6">
-          <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
-            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Award className="h-5 w-5 text-amber-400" /> AI Verified Badges & Certificates
-            </h2>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {userBadges.map((badge) => (
-              <BadgeCard key={badge.id} badge={badge} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Tab 5: Resume */}
-      {activeTab === 'resume' && (
-        <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-sm space-y-6">
-          <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
-            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <FileText className="h-5 w-5 text-blue-500" /> Resume Upload & Parsing
-            </h2>
-          </div>
-          <div className="relative rounded-3xl border-2 border-dashed border-slate-300 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-8 text-center space-y-3">
-            <Upload className="mx-auto h-10 w-10 text-brand-500" />
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white">Upload ATS PDF Resume</h3>
-            <label className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-xs font-bold text-white cursor-pointer shadow-md">
-              <FileCheck className="h-4 w-4" /> Select File
-              <input type="file" accept=".pdf" onChange={handleResumeUpload} className="hidden" />
-            </label>
-          </div>
-        </div>
-      )}
-
-      {/* Tab: Skills (S12) */}
-      {activeTab === 'skills' && (
-        <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-sm space-y-6">
-          <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
-            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Code2 className="h-5 w-5 text-purple-500" /> AI Assessed Skills Graph
-            </h2>
-          </div>
-          <div className="grid lg:grid-cols-2 gap-8 items-center">
-            {/* Radar Chart */}
-            <div className="h-80 w-full flex justify-center items-center">
-              {skillScores.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart cx="50%" cy="50%" outerRadius="70%" data={skillScores}>
-                    <PolarGrid stroke="#334155" />
-                    <PolarAngleAxis dataKey="skill" tick={{ fill: theme === 'dark' ? '#cbd5e1' : '#475569', fontSize: 12 }} />
-                    <Radar name="Skill Score" dataKey="score" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.6} />
-                    <RechartsTooltip />
-                  </RadarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="text-slate-500 text-sm italic text-center">
-                  AI embeddings for your profile are processing.<br />Check back later for your skill radar.
-                </div>
-              )}
-            </div>
-            
-            {/* Chips */}
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">Core Strengths</h3>
-                <div className="flex gap-2 flex-wrap">
-                  {skillScores.filter(s => s.category === 'strength').length > 0 ? (
-                    skillScores.filter(s => s.category === 'strength').map((s, i) => (
-                      <span key={i} className="rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300 px-3 py-1 text-xs font-bold border border-emerald-200 dark:border-emerald-500/30 shadow-sm">
-                        {s.skill}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-xs text-slate-400">Processing strengths...</span>
-                  )}
-                </div>
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">Interests & Exploring</h3>
-                <div className="flex gap-2 flex-wrap">
-                  {skillScores.filter(s => s.category === 'interest').length > 0 ? (
-                    skillScores.filter(s => s.category === 'interest').map((s, i) => (
-                      <span key={i} className="rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-500/20 dark:text-indigo-300 px-3 py-1 text-xs font-bold border border-indigo-200 dark:border-indigo-500/30 shadow-sm">
-                        {s.skill}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-xs text-slate-400">Processing interests...</span>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tab: Social */}
-      {activeTab === 'social' && (
-        <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-sm space-y-6">
-          <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
-            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Link2 className="h-5 w-5 text-sky-500" /> Social Links & Portfolios
-            </h2>
-          </div>
-          <div className="space-y-4 max-w-xl">
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">GitHub Profile URL</label>
-              <input
-                type="url"
-                value={githubUrl}
-                onChange={(e) => setGithubUrl(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-4 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
-                placeholder="https://github.com/username"
-              />
-            </div>
-            <div className="flex justify-end pt-2">
-              <button
-                onClick={() => handleSave('Social Links')}
-                disabled={saving}
-                className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-brand-500 transition disabled:opacity-50"
-              >
-                <Save className="h-4 w-4" /> Save Links
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tab: Preferences */}
-      {activeTab === 'preferences' && (
-        <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-sm space-y-6">
-          <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
-            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Settings className="h-5 w-5 text-slate-500" /> Visibility Preferences
-            </h2>
-          </div>
-          <div className="max-w-xl space-y-6">
-            <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
-              <div className="space-y-1">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Public Profile</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Allow recruiters and other students to view your verified skills, badges, and radar chart.
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  setProfilePublic(!profilePublic);
-                  // We could auto-save here, but we'll let them click save or auto-trigger handleSave
-                }}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  profilePublic ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-700'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    profilePublic ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-            
-            <div className="flex justify-end">
-              <button
-                onClick={() => handleSave('Preferences')}
-                disabled={saving}
-                className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-brand-500 transition disabled:opacity-50"
-              >
-                <Save className="h-4 w-4" /> Save Preferences
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tab: Applications */}
-      {activeTab === 'applications' && (
-        <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-sm space-y-6">
-          <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
-            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Building className="h-5 w-5 text-brand-500" /> Employer Shortlists & Applications
-            </h2>
-          </div>
-          
-          {applications.length === 0 ? (
-            <div className="text-center py-8 text-slate-500 text-sm border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
-              No applications or shortlists yet. Keep completing challenges!
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {applications.map((app) => (
-                <div key={app.id} className="flex items-center justify-between p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
-                  <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-xl bg-purple-600/20 text-purple-400 font-black flex items-center justify-center border border-purple-500/30">
-                      <Building className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-slate-900 dark:text-white text-sm">{app.companyName}</h3>
-                      <p className="text-xs text-slate-500">Shortlisted on {new Date(app.shortlistedAt).toLocaleDateString()}</p>
-                    </div>
-                  </div>
-                  <div className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-3 py-1 text-[10px] font-bold text-emerald-400 border border-emerald-500/30">
-                    <CheckCircle2 className="h-3.5 w-3.5" /> {app.status}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Fallback tabs preview */}
-      {activeTab !== 'personal' && activeTab !== 'achievements' && activeTab !== 'resume' && activeTab !== 'skills' && activeTab !== 'social' && activeTab !== 'applications' && activeTab !== 'preferences' && (
-        <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-sm space-y-4">
-          <h2 className="text-base font-bold text-slate-900 dark:text-white capitalize">{activeTab} Settings</h2>
-          <p className="text-xs text-slate-400">Candidate profile settings saved.</p>
-        </div>
-      )}
     </div>
   );
 }
