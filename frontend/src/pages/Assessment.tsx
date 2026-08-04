@@ -355,7 +355,7 @@ export default function Assessment() {
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-16 font-sans text-slate-900 dark:text-slate-100">
       {/* Top Header Banner */}
-      <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-xl">
+      <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 dark:border-slate-800 midnight:border-line bg-white dark:bg-slate-900 midnight:bg-panel p-8 shadow-xl">
         <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-purple-500/10 blur-3xl" />
         <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
           <div className="space-y-1">
@@ -385,7 +385,7 @@ export default function Assessment() {
                   ? 'bg-red-500/10 border-red-500/40 text-red-400 animate-pulse'
                   : timeLeft < 300
                   ? 'bg-amber-500/10 border-amber-500/40 text-amber-400'
-                  : 'bg-slate-950/80 border-slate-800 text-purple-300'
+                  : 'bg-slate-50 dark:bg-slate-950/80 midnight:bg-slate-950/80 border-slate-200 dark:border-slate-800 midnight:border-slate-800 text-purple-600 dark:text-purple-300 midnight:text-purple-300'
               }`}
             >
               <Clock className="h-5 w-5" />
@@ -418,9 +418,9 @@ export default function Assessment() {
 
       {/* Main Container: Question Mode vs Results Mode */}
       {!isCompleted ? (
-        <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-sm space-y-8">
+        <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800/80 midnight:border-line bg-white dark:bg-slate-900 midnight:bg-panel p-8 shadow-xl space-y-8">
           {/* Question Category & Header */}
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 midnight:border-slate-800 pb-4">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/30">
                 <Zap className="h-5 w-5" />
@@ -455,8 +455,8 @@ export default function Assessment() {
                       onClick={() => handleSelectAnswer(activeQuestion.id, opt.value)}
                       className={`flex flex-col items-center justify-center p-4 rounded-2xl border text-center transition-all ${
                         isSelected
-                          ? 'bg-purple-600/20 border-purple-500 text-white shadow-lg shadow-purple-500/10 font-bold scale-[1.02]'
-                          : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:bg-slate-800 hover:text-white'
+                          ? 'bg-purple-600/20 border-purple-500 text-purple-900 dark:text-white midnight:text-white shadow-lg shadow-purple-500/10 font-bold scale-[1.02]'
+                          : 'bg-slate-50 dark:bg-slate-950/60 midnight:bg-slate-950/60 border-slate-200 dark:border-slate-800 midnight:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 midnight:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
                       }`}
                     >
                       <span className="text-xl font-extrabold mb-1">{opt.value}</span>
@@ -475,8 +475,8 @@ export default function Assessment() {
                       onClick={() => handleSelectAnswer(activeQuestion.id, opt.value)}
                       className={`flex items-center gap-4 p-4 rounded-2xl border text-left transition-all ${
                         isSelected
-                          ? 'bg-purple-600/20 border-purple-500 text-white shadow-lg shadow-purple-500/10 font-bold'
-                          : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
+                          ? 'bg-purple-600/20 border-purple-500 text-purple-900 dark:text-white midnight:text-white shadow-lg shadow-purple-500/10 font-bold'
+                          : 'bg-slate-50 dark:bg-slate-950/60 midnight:bg-slate-950/60 border-slate-200 dark:border-slate-800 midnight:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 midnight:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
                       }`}
                     >
                       <div
@@ -505,12 +505,12 @@ export default function Assessment() {
                   <button
                     key={q.id}
                     onClick={() => setCurrentIdx(idx)}
-                    className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold transition ${
+                    className={`flex h-7 w-7 items-center justify-center rounded-lg border text-xs font-bold transition ${
                       isCurrent
-                        ? 'bg-purple-600 text-white ring-2 ring-purple-400'
+                        ? 'bg-purple-600 text-white ring-2 ring-purple-400 border-transparent'
                         : isAnswered
-                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                        : 'bg-slate-800 text-slate-500 hover:text-slate-300'
+                        ? 'bg-emerald-50 dark:bg-emerald-500/20 midnight:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30'
+                        : 'bg-slate-100 dark:bg-slate-800 midnight:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-800 midnight:border-slate-800 hover:bg-slate-200 hover:text-slate-700 dark:hover:text-slate-300'
                     }`}
                   >
                     {idx + 1}
@@ -524,7 +524,7 @@ export default function Assessment() {
               <button
                 onClick={() => setCurrentIdx((prev) => Math.max(0, prev - 1))}
                 disabled={currentIdx === 0}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-950 px-4 py-2.5 text-xs font-bold text-slate-300 disabled:opacity-50 hover:bg-slate-800 hover:text-white transition"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-800 midnight:border-slate-800 bg-white dark:bg-slate-950 midnight:bg-slate-950 px-4 py-2.5 text-xs font-bold text-slate-500 dark:text-slate-300 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
               >
                 <ChevronLeft className="h-4 w-4" /> Previous
               </button>

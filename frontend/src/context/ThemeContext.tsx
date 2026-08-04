@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-type Theme = 'light' | 'dark';
+type Theme = 'light' | 'dark' | 'midnight';
 
 interface ThemeContextType {
   theme: Theme;
@@ -10,24 +10,31 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  // Default to 'dark' mode as preferred in the design guidelines
+  // Default to 'midnight' mode as preferred by the user's latest feedback
   const [theme, setTheme] = useState<Theme>(() => {
     const savedTheme = localStorage.getItem('theme');
-    return (savedTheme as Theme) || 'dark';
+    return (savedTheme as Theme) || 'midnight';
   });
 
   useEffect(() => {
     const root = window.document.documentElement;
+    root.classList.remove('dark', 'midnight');
+    
     if (theme === 'dark') {
       root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
+    } else if (theme === 'midnight') {
+      root.classList.add('midnight');
     }
+    
     localStorage.setItem('theme', theme);
   }, [theme]);
 
   const toggleTheme = () => {
-    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+    setTheme((prev) => {
+      if (prev === 'light') return 'dark';
+      if (prev === 'dark') return 'midnight';
+      return 'light';
+    });
   };
 
   return (

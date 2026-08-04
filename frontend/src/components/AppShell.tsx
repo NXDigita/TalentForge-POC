@@ -201,11 +201,11 @@ export default function AppShell() {
   const navItems = allNavItems.filter((item) => userRole === 'ADMIN' || item.roles.includes(userRole));
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 transition-colors duration-200">
+    <div className="flex h-screen w-screen overflow-hidden bg-slate-50 dark:bg-slate-950 midnight:bg-bg font-sans text-slate-900 dark:text-slate-100 midnight:text-tx transition-colors duration-200">
       {/* Sidebar */}
-      <aside className="flex w-64 flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 transition-colors duration-200">
+      <aside className="flex w-64 flex-col border-r border-slate-200 dark:border-slate-800 midnight:border-line bg-white dark:bg-slate-900 midnight:bg-panel transition-colors duration-200">
         {/* Brand Header */}
-        <div className="flex h-16 items-center px-6 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex h-16 items-center px-6 border-b border-slate-100 dark:border-slate-800 midnight:border-line">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-500 text-white font-bold shadow-md shadow-brand-500/20">
               TF
@@ -368,19 +368,24 @@ export default function AppShell() {
             {/* Theme Toggle Button */}
             <button
               onClick={toggleTheme}
-              className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 p-2 text-slate-500 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white transition-all shadow-sm"
+              className="rounded-xl border border-slate-200 dark:border-slate-800 midnight:border-line bg-slate-50 dark:bg-slate-800/50 midnight:bg-panel2 p-2 text-slate-500 dark:text-slate-400 midnight:text-tx2 hover:text-slate-950 dark:hover:text-white midnight:hover:text-tx transition-all shadow-sm"
               aria-label="Toggle Theme"
             >
-              {theme === 'dark' ? (
+              {theme === 'light' && (
                 // Sun Icon
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.364l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
                 </svg>
-              ) : (
+              )}
+              {theme === 'dark' && (
                 // Moon Icon
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
                 </svg>
+              )}
+              {theme === 'midnight' && (
+                // Stars/Galaxy Icon (Sparkles)
+                <Sparkles className="h-4 w-4 text-indigo-400" />
               )}
             </button>
 
@@ -411,7 +416,7 @@ export default function AppShell() {
         </header>
 
         {/* Content Body */}
-        <main className="flex-1 overflow-y-auto p-8 bg-slate-50/50 dark:bg-slate-950/20 transition-colors duration-200 relative">
+        <main className="flex-1 overflow-y-auto p-8 bg-slate-50/50 dark:bg-slate-950/20 midnight:bg-transparent transition-colors duration-200 relative">
           <div className="mx-auto max-w-5xl">
             <Outlet />
           </div>
