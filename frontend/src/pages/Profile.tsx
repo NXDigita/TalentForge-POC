@@ -31,7 +31,7 @@ import {
   Terminal,
   Cpu,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, DragEvent, ChangeEvent } from 'react';
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, Radar, Tooltip as RechartsTooltip } from 'recharts';
 import { toast } from 'sonner';
 import BadgeCard, { BadgeData } from '../components/BadgeCard';
@@ -74,8 +74,9 @@ export default function Profile() {
 function StudentCandidateProfileView() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<CandidateTabType>('resume');
-  const [resumeState, setResumeState] = useState<'upload' | 'parsing' | 'review'>('upload');
+  const [resumeState, setResumeState] = useState<'upload' | 'uploading' | 'parsing' | 'review'>('upload');
   const [parseStep, setParseStep] = useState('Extracting skills...');
+  const [parsedData, setParsedData] = useState<any>(null);
   const [badges, setBadges] = useState<BadgeData[]>([]);
 
   const [formData, setFormData] = useState({
@@ -84,13 +85,17 @@ function StudentCandidateProfileView() {
     githubUsername: '',
     profilePublic: false,
     freezeProfile: false,
+    skills: [] as {name: string, level: string}[],
+    education: [] as {college: string, degree: string, graduationYear: string}[],
+    links: [] as {label: string, url: string}[],
+    resumeS3Key: '',
   });
   
   const [saving, setSaving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Fetch profile data to pre-fill forms
-    api.get('/api/students/profile').then(res => {
+    api.get('/students/profile').then(res => {
       setFormData(prev => ({
         ...prev,
         name: res.data.name || prev.name,
@@ -98,36 +103,76 @@ function StudentCandidateProfileView() {
         githubUsername: res.data.githubUsername || '',
         profilePublic: res.data.profilePublic || false,
         freezeProfile: res.data.profileFrozen || false,
+        skills: res.data.skills || [],
+        education: res.data.education || [],
+        links: res.data.links || [],
+        resumeS3Key: res.data.resumeS3Key || '',
       }));
     }).catch(console.error);
 
     getUserBadges().then(setBadges).catch(console.error);
   }, []);
 
-  const runParse = () => {
-    setResumeState('parsing');
-    const steps = ['Extracting skills...', 'Reading education & experience...', 'Matching against your solved challenges...', 'Scoring extraction confidence...'];
-    let i = 0;
-    setParseStep(steps[0]);
-    const t = setInterval(() => {
-      i++;
-      if (i < steps.length) setParseStep(steps[i]);
-    }, 460);
-    setTimeout(() => {
-      clearInterval(t);
-      setResumeState('review');
-    }, 1900);
+  const handleFileDrop = async (e: DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      await processResume(e.dataTransfer.files[0]);
+    }
   };
 
-  const handleDrop = (e: any) => {
-    e.preventDefault();
-    runParse();
+  const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      await processResume(e.target.files[0]);
+    }
+  };
+
+  const processResume = async (file: File) => {
+    setResumeState('uploading');
+    try {
+      const { data: { uploadUrl, s3Key } } = await api.get('/students/profile/resume-upload-url');
+      
+      await axios.put(uploadUrl, file, { headers: { 'Content-Type': file.type } });
+      setFormData(prev => ({ ...prev, resumeS3Key: s3Key }));
+
+      setResumeState('parsing');
+      setParseStep('Extracting skills...');
+      
+      const parseRes = await api.post('/students/profile/parse-resume', { s3Key });
+      setParsedData(parseRes.data.data);
+      setResumeState('review');
+    } catch (err) {
+      console.error(err);
+      toast.error('Resume parsing failed');
+      setResumeState('upload');
+    }
+  };
+
+  const acceptParsedData = () => {
+    if (parsedData) {
+      setFormData(prev => ({
+        ...prev,
+        skills: parsedData.skills || [],
+        education: parsedData.education || []
+      }));
+      toast.success('Claims saved to profile!');
+    }
   };
 
   const handleSaveAll = async () => {
     setSaving(true);
     try {
-      await api.put('/api/students/profile', formData);
+      await api.put('/students/profile', {
+        name: formData.name,
+        mobileNumber: formData.mobileNumber,
+        githubUsername: formData.githubUsername,
+        profilePublic: formData.profilePublic,
+        freezeProfile: formData.freezeProfile
+      });
+      await api.put('/students/profile/s2', {
+        skills: formData.skills,
+        links: formData.links,
+        resumeS3Key: formData.resumeS3Key
+      });
       toast.success('Profile saved successfully!');
     } catch (err) {
       console.error(err);
@@ -137,23 +182,40 @@ function StudentCandidateProfileView() {
     }
   };
 
-  return (
-    <div className="font-sans text-tx antialiased min-h-screen pb-16 pt-8 relative">
-      {/* SHINY FLOATING SAVE BUTTON */}
-      <button 
-        onClick={handleSaveAll}
-        disabled={saving}
-        className="fixed bottom-8 right-8 z-50 flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-indigo to-indigo2 text-white font-bold shadow-[0_0_20px_rgba(109,92,240,0.5)] hover:shadow-[0_0_30px_rgba(109,92,240,0.8)] hover:scale-105 transition-all duration-300 disabled:opacity-70 disabled:hover:scale-100 disabled:shadow-none"
-      >
-        <Sparkles className={`h-5 w-5 ${saving ? 'animate-spin' : ''}`} />
-        {saving ? 'Saving...' : 'Save Profile'}
-      </button>
+  const tabs = [
+    { id: 'personal', label: 'Personal', icon: '◍', dot: 'bg-green' },
+    { id: 'academic', label: 'Academic', icon: '◎', dot: 'bg-green' },
+    { id: 'skills', label: 'Skills', icon: '‹›', dot: 'bg-amber' },
+    { id: 'achievements', label: 'Achievements', icon: '♜', dot: 'bg-line2' },
+    { id: 'resume', label: 'Resume', icon: '▤', dot: 'bg-line2' },
+    { id: 'social', label: 'Social', icon: '⚭', dot: 'bg-line2' },
+    { id: 'blockchain', label: 'Blockchain', icon: '◈', dot: 'bg-green' },
+    { id: 'applications', label: 'Applications', icon: '▦', dot: '' },
+    { id: 'preferences', label: 'Preferences', icon: '⚙', dot: '' },
+  ];
 
-      <div className="max-w-[1120px] mx-auto px-6">
+  return (
+    <div className="font-sans text-tx bg-bg antialiased min-h-screen pb-16 pt-6 relative">
+      {/* Top Navbar Area */}
+      <div className="border-b border-line2/50 bg-panel/50 backdrop-blur-sm mb-8 absolute top-0 left-0 right-0 h-14 flex items-center px-6">
+        <h1 className="text-tx font-semibold text-[15px] tracking-wide">Proof Profile</h1>
+      </div>
+
+      <div className="max-w-[1120px] mx-auto px-6 mt-14">
+        
+        {/* Floating save button */}
+        <button 
+          onClick={handleSaveAll}
+          disabled={saving}
+          className="fixed bottom-8 right-8 z-50 flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-indigo to-indigo2 text-white font-bold shadow-[0_0_20px_rgba(124,108,246,0.5)] hover:shadow-[0_0_30px_rgba(124,108,246,0.8)] hover:scale-105 transition-all duration-300 disabled:opacity-70 disabled:hover:scale-100 disabled:shadow-none"
+        >
+          <Sparkles className={`h-5 w-5 ${saving ? 'animate-spin' : ''}`} />
+          {saving ? 'Saving...' : 'Save Profile'}
+        </button>
+
         {/* profile header */}
-        <section className="rounded-2xl border border-line2 bg-gradient-to-br from-panel to-panel3 p-6 shadow-xl relative overflow-hidden">
-          <div className="absolute -right-20 -top-20 w-64 h-64 bg-indigo/10 blur-3xl rounded-full"></div>
-          <div className="flex flex-wrap items-center gap-5 relative z-10">
+        <section className="rounded-2xl border border-line2 bg-gradient-to-br from-panel to-panel3 p-6">
+          <div className="flex flex-wrap items-center gap-5">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#6D5CF0] to-indigo grid place-items-center text-white text-2xl font-bold flex-none shadow-lg">
               {formData.name?.[0]?.toUpperCase() || 'S'}
             </div>
@@ -173,7 +235,7 @@ function StudentCandidateProfileView() {
           </div>
 
           {/* proof strength meter */}
-          <div className="mt-6 pt-5 border-t border-line grid sm:grid-cols-[1fr,auto] gap-4 items-center relative z-10">
+          <div className="mt-6 pt-5 border-t border-line grid sm:grid-cols-[1fr,auto] gap-4 items-center">
             <div>
               <div className="flex items-center justify-between text-[12.5px] mb-2">
                 <span className="text-tx2 font-medium">Proof strength</span>
@@ -193,23 +255,21 @@ function StudentCandidateProfileView() {
 
         {/* TAB BAR */}
         <nav className="mt-5 flex flex-wrap gap-1.5">
-          {['personal', 'academic', 'skills', 'achievements', 'resume', 'social', 'blockchain', 'applications', 'preferences'].map(tab => {
-            const isActive = activeTab === tab;
-            let icon = '◍';
-            let dot = 'bg-line2';
-            if (tab === 'personal' || tab === 'academic' || tab === 'blockchain' || tab === 'social' || tab === 'preferences') { icon = '✓'; dot = 'bg-green'; }
-            if (tab === 'skills') { icon = '‹›'; dot = 'bg-amber'; }
-            if (tab === 'achievements') { icon = '♜'; dot = 'bg-green'; }
-            if (tab === 'resume') { icon = '▤'; }
-            if (tab === 'applications') { icon = '▦'; dot = ''; }
-            
+          {tabs.map(tab => {
+            const isActive = activeTab === tab.id;
             return (
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab as CandidateTabType)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-[13px] transition-all duration-200 ${isActive ? 'bg-indigo border border-indigo text-white font-medium shadow-[0_0_15px_rgba(109,92,240,0.3)]' : 'bg-panel border border-line text-tx2 hover:border-line2 hover:text-white'}`}
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as CandidateTabType)}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-[13px] transition-all duration-200 ${
+                  isActive 
+                    ? 'bg-indigo border border-indigo text-white font-medium shadow-[0_0_15px_rgba(124,108,246,0.3)]' 
+                    : 'bg-panel border border-line text-tx2 hover:border-line2 hover:text-white'
+                }`}
               >
-                <span>{icon}</span> <span className="capitalize">{tab}</span> {dot && <span className={`w-1.5 h-1.5 rounded-full ${dot}`}></span>}
+                <span>{tab.icon}</span> 
+                <span className="capitalize">{tab.label}</span> 
+                {tab.dot && <span className={`w-1.5 h-1.5 rounded-full ${tab.dot}`}></span>}
               </button>
             )
           })}
@@ -229,15 +289,16 @@ function StudentCandidateProfileView() {
                 <p className="text-[13px] text-tx2 mb-5">Upload once. We extract your skills, education and experience — then you turn each claim into verified proof by solving a matching challenge.</p>
 
                 {resumeState === 'upload' && (
-                  <div>
+                  <div className="animate-in fade-in">
                     <div 
-                      onClick={runParse} 
                       onDragOver={e => e.preventDefault()}
-                      onDrop={handleDrop}
+                      onDrop={handleFileDrop}
+                      onClick={() => fileInputRef.current?.click()}
                       className="rounded-xl border-2 border-dashed border-line2 bg-panel3 px-6 py-10 text-center cursor-pointer hover:border-indigo/60 transition-colors group"
                     >
+                      <input type="file" ref={fileInputRef} className="hidden" accept=".pdf,.docx" onChange={handleFileSelect} />
                       <div className="w-12 h-12 mx-auto rounded-xl bg-indigo/10 flex items-center justify-center text-indigo2 text-xl group-hover:bg-indigo/20 transition-colors">↑</div>
-                      <div className="text-[15px] font-semibold mt-3 text-white">Drag &amp; drop your resume, or <span className="text-indigo2 underline decoration-indigo/40">browse</span></div>
+                      <div className="text-[15px] font-semibold mt-3 text-white">Drag & drop your resume, or <span className="text-indigo2 underline decoration-indigo/40">browse</span></div>
                       <div className="text-[12px] text-tx3 mt-1.5">PDF or DOCX · up to 5 MB · ATS-formatted works best</div>
                     </div>
 
@@ -252,7 +313,7 @@ function StudentCandidateProfileView() {
                       <div className="text-[11px] uppercase tracking-wide text-tx3 font-semibold mb-2.5">Or build from</div>
                       <div className="flex flex-wrap gap-2.5">
                         <button className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-panel2 border border-line2 text-[12.5px] text-tx2 hover:border-indigo hover:text-white transition-colors">
-                          <span>⌥</span> Connect GitHub <span className="text-tx3 text-[11px]">— auto-import projects &amp; languages</span>
+                          <span>⌥</span> Connect GitHub <span className="text-tx3 text-[11px]">— auto-import projects & languages</span>
                         </button>
                         <button className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-panel2 border border-line2 text-[12.5px] text-tx2 hover:border-indigo hover:text-white transition-colors">
                           <span>in</span> Upload LinkedIn export
@@ -265,10 +326,10 @@ function StudentCandidateProfileView() {
                   </div>
                 )}
 
-                {resumeState === 'parsing' && (
+                {(resumeState === 'uploading' || resumeState === 'parsing') && (
                   <div className="text-center py-12 animate-pulse">
-                    <div className="w-11 h-11 mx-auto rounded-full border-2 border-line2 border-t-indigo2 animate-spin"></div>
-                    <div className="text-[14px] font-medium mt-4 text-white">Reading <span className="font-mono text-cyan">{formData.name || 'student'}_resume.pdf</span></div>
+                    <div className="w-11 h-11 mx-auto rounded-full border-2 border-line2 border-t-indigo2 animate-spin mb-4"></div>
+                    <div className="text-[14px] font-medium text-white">Reading <span className="font-mono text-cyan">resume.pdf</span></div>
                     <div className="text-[12.5px] text-tx3 mt-1.5">{parseStep}</div>
                   </div>
                 )}
@@ -277,27 +338,31 @@ function StudentCandidateProfileView() {
                   <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
                     <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-lg bg-green/5 border border-green/25 text-[12.5px] mb-5">
                       <span className="text-green">✓</span>
-                      <span className="text-tx2">Parsed <b className="text-white">{formData.name || 'student'}_resume.pdf</b> — review below. Everything imports as <b className="text-amber">claimed</b> until you verify it.</span>
-                      <button onClick={() => setResumeState('upload')} className="ml-auto text-tx3 hover:text-tx text-[12px]">Start over</button>
+                      <span className="text-tx2">Parsed <b className="text-white">resume.pdf</b> — review below. Everything imports as <b className="text-amber">claimed</b> until you verify it.</span>
+                      <button onClick={() => setResumeState('upload')} className="ml-auto text-tx3 hover:text-white text-[12px]">Start over</button>
                     </div>
 
-                    <div className="text-[11px] uppercase tracking-wide text-tx3 font-semibold mb-2.5">Extracted skills · <span className="text-green">2 verified</span> · <span className="text-amber">6 to verify</span></div>
+                    <div className="text-[11px] uppercase tracking-wide text-tx3 font-semibold mb-2.5">Extracted skills · <span className="text-green">2 verified</span> · <span className="text-amber">{parsedData?.skills?.length || 0} to verify</span></div>
                     <div className="flex flex-wrap gap-2">
                       <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green/10 border border-green/30 text-[12.5px] text-green shadow-sm"><span>✓</span> Algorithms</span>
                       <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green/10 border border-green/30 text-[12.5px] text-green shadow-sm"><span>✓</span> Data Structures</span>
-                      {['Python', 'React', 'Node.js', 'System Design', 'PostgreSQL', 'Docker'].map(skill => (
-                        <button key={skill} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-panel3 border border-line2 text-[12.5px] text-tx2 hover:border-indigo hover:text-white transition-colors group">
-                          <span className="text-amber">○</span> {skill} <span className="text-indigo2 text-[11px] opacity-0 group-hover:opacity-100 transition-opacity">verify →</span>
+                      {parsedData?.skills?.map((skill: any, i: number) => (
+                        <button key={i} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-panel3 border border-line2 text-[12.5px] text-tx2 hover:border-indigo hover:text-white transition-colors group">
+                          <span className="text-amber">○</span> {skill.name} <span className="text-indigo2 text-[11px] opacity-0 group-hover:opacity-100 transition-opacity">verify →</span>
                         </button>
                       ))}
                     </div>
 
                     <div className="grid sm:grid-cols-2 gap-3 mt-5">
-                      <div className="rounded-lg bg-panel3 border border-line p-4 shadow-sm hover:border-line2 transition-colors">
+                      <div className="rounded-lg bg-panel3 border border-line p-4 shadow-sm">
                         <div className="flex items-center justify-between"><span className="text-[11px] uppercase tracking-wide text-tx3 font-semibold">Education</span>
                           <span className="text-[10.5px] text-green">✓ matches records</span></div>
-                        <div className="text-[13.5px] font-semibold mt-2 text-white">B.Tech, Computer Science</div>
-                        <div className="text-[12px] text-tx3">2022 – 2026 · CGPA 8.7</div>
+                        {parsedData?.education?.map((edu: any, i: number) => (
+                          <div key={i} className="mt-2">
+                            <div className="text-[13.5px] font-semibold text-white">{edu.degree}</div>
+                            <div className="text-[12px] text-tx3">{edu.college} · {edu.graduationYear}</div>
+                          </div>
+                        ))}
                       </div>
                       <div className="rounded-lg bg-panel3 border border-line p-4 shadow-sm hover:border-line2 transition-colors">
                         <div className="flex items-center justify-between"><span className="text-[11px] uppercase tracking-wide text-tx3 font-semibold">Experience</span>
@@ -309,8 +374,8 @@ function StudentCandidateProfileView() {
                     <p className="text-[11.5px] text-tx3 mt-2.5">↳ Extraction confidence 0.91 · fields you edit are flagged as self-reported to recruiters.</p>
 
                     <div className="flex flex-wrap gap-2.5 mt-5">
-                      <button className="px-4 py-2.5 rounded-lg bg-indigo hover:bg-[#6C5AF0] text-white text-[13.5px] font-semibold flex items-center gap-2 shadow-[0_4px_14px_0_rgba(109,92,240,0.39)] transition-all">Verify skills by solving <span>→</span></button>
-                      <button className="px-4 py-2.5 rounded-lg border border-line2 text-tx2 hover:text-white hover:bg-panel3 text-[13.5px] transition-colors">Save claims to profile</button>
+                      <button className="px-4 py-2.5 rounded-lg bg-indigo hover:bg-[#6C5AF0] text-white text-[13.5px] font-semibold flex items-center gap-2 shadow-[0_4px_14px_0_rgba(124,108,246,0.39)] transition-all">Verify skills by solving <span>→</span></button>
+                      <button onClick={acceptParsedData} className="px-4 py-2.5 rounded-lg border border-line2 text-tx2 hover:text-white hover:bg-panel3 text-[13.5px] transition-colors">Save claims to profile</button>
                     </div>
                   </div>
                 )}
@@ -335,15 +400,6 @@ function StudentCandidateProfileView() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[12px] font-bold text-tx2 uppercase tracking-wide">Email (Read-only)</label>
-                    <input
-                      type="email"
-                      value={user?.email || 'student@college.edu'}
-                      disabled
-                      className="w-full rounded-xl border border-line bg-panel/50 px-4 py-3 text-[13px] text-tx3 cursor-not-allowed"
-                    />
-                  </div>
-                  <div className="space-y-2">
                     <label className="text-[12px] font-bold text-tx2 uppercase tracking-wide">Mobile Number</label>
                     <input
                       type="text"
@@ -354,15 +410,6 @@ function StudentCandidateProfileView() {
                       className="w-full rounded-xl border border-line2 bg-panel3 px-4 py-3 text-[13px] text-white focus:outline-none focus:border-indigo focus:ring-1 focus:ring-indigo transition-all disabled:opacity-50"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-[12px] font-bold text-tx2 uppercase tracking-wide">Primary Domain (Read-only)</label>
-                    <input
-                      type="text"
-                      value={(user as any)?.domain || 'Computer Science (CSE)'}
-                      disabled
-                      className="w-full rounded-xl border border-line bg-panel/50 px-4 py-3 text-[13px] text-tx3 cursor-not-allowed"
-                    />
-                  </div>
                 </div>
               </section>
             )}
@@ -371,7 +418,7 @@ function StudentCandidateProfileView() {
               <section className="rounded-2xl border border-line bg-panel p-6 shadow-md animate-in fade-in duration-300">
                 <div className="flex items-center gap-2.5 mb-6 border-b border-line pb-4">
                   <Globe className="h-5 w-5 text-indigo2" />
-                  <h3 className="text-[16px] font-semibold text-white">Social &amp; Links</h3>
+                  <h3 className="text-[16px] font-semibold text-white">Social & Links</h3>
                 </div>
                 <div className="grid gap-6 sm:grid-cols-2">
                   <div className="space-y-2">
@@ -382,15 +429,6 @@ function StudentCandidateProfileView() {
                       onChange={(e) => setFormData({...formData, githubUsername: e.target.value})}
                       placeholder="e.g. octocat"
                       className="w-full rounded-xl border border-line2 bg-panel3 px-4 py-3 text-[13px] text-white focus:outline-none focus:border-indigo focus:ring-1 focus:ring-indigo transition-all"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[12px] font-bold text-tx2 uppercase tracking-wide flex items-center gap-1.5"><Linkedin className="h-4 w-4" /> LinkedIn URL (WIP)</label>
-                    <input
-                      type="url"
-                      disabled
-                      placeholder="https://linkedin.com/in/..."
-                      className="w-full rounded-xl border border-line bg-panel/50 px-4 py-3 text-[13px] text-tx3 cursor-not-allowed"
                     />
                   </div>
                 </div>
@@ -434,7 +472,7 @@ function StudentCandidateProfileView() {
               <section className="rounded-2xl border border-line bg-panel p-6 shadow-md animate-in fade-in duration-300">
                 <div className="flex items-center gap-2.5 mb-6 border-b border-line pb-4">
                   <Trophy className="h-5 w-5 text-amber" />
-                  <h3 className="text-[16px] font-semibold text-white">AI Verified Badges &amp; Certificates</h3>
+                  <h3 className="text-[16px] font-semibold text-white">AI Verified Badges & Certificates</h3>
                 </div>
                 {badges.length > 0 ? (
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -474,7 +512,7 @@ function StudentCandidateProfileView() {
                 <li className="flex items-center gap-2.5 text-tx"><span className="w-5 h-5 rounded-md bg-green/15 text-green flex items-center justify-center text-[11px]">✓</span> Personal</li>
                 <li className="flex items-center gap-2.5 text-tx"><span className="w-5 h-5 rounded-md bg-green/15 text-green flex items-center justify-center text-[11px]">✓</span> Academic</li>
                 <li className="flex items-center gap-2.5 text-tx"><span className="w-5 h-5 rounded-md bg-green/15 text-green flex items-center justify-center text-[11px]">✓</span> Blockchain wallet</li>
-                <li className="flex items-center gap-2.5 text-indigo2 font-medium"><span className="w-5 h-5 rounded-md bg-indigo/20 flex items-center justify-center text-[11px]">→</span> Resume</li>
+                <li className="flex items-center gap-2.5 text-indigo2 font-medium"><span className="w-5 h-5 rounded-md bg-indigo/20 flex items-center justify-center text-[11px]">→</span> Resume <span className="ml-auto text-[11px] text-tx3">you're here</span></li>
                 <li className="flex items-center gap-2.5 text-tx3"><span className="w-5 h-5 rounded-md bg-panel3 border border-line flex items-center justify-center text-[11px]">○</span> Skills <span className="ml-auto text-[11px]">2 / 8 verified</span></li>
                 <li className="flex items-center gap-2.5 text-tx3"><span className="w-5 h-5 rounded-md bg-panel3 border border-line flex items-center justify-center text-[11px]">—</span> Achievements</li>
                 <li className="flex items-center gap-2.5 text-tx3"><span className="w-5 h-5 rounded-md bg-panel3 border border-line flex items-center justify-center text-[11px]">—</span> Social links</li>

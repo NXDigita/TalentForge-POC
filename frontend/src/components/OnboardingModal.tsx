@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, ChevronRight, Code2, Cpu, Sparkles, Database, Brain, Layers, ArrowRight, Loader2 } from 'lucide-react';
+import { CheckCircle2, ChevronRight, Code2, Cpu, Sparkles, Database, Brain, FileText, ArrowRight, Loader2 } from 'lucide-react';
 import api from '../services/api';
 
 const DOMAINS = [
@@ -42,7 +42,7 @@ export default function OnboardingModal({ onComplete, userName = 'Candidate' }: 
     } finally {
       setLoading(false);
       onComplete();
-      navigate('/dashboard');
+      navigate('/profile');
     }
   };
 
@@ -165,33 +165,33 @@ export default function OnboardingModal({ onComplete, userName = 'Candidate' }: 
             </div>
           )}
 
-          {/* Step 3: Ready */}
+          {/* Step 3: Ready — route to Proof Profile */}
           {step === 3 && (
             <div className="space-y-5 text-center">
               <div className="flex justify-center">
-                <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-brand-500/10 border border-brand-500/20">
-                  <Sparkles className="h-10 w-10 text-brand-500" />
+                <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-indigo-500/10 border border-indigo-500/20">
+                  <FileText className="h-10 w-10 text-indigo-500" />
                 </div>
               </div>
               <div>
-                <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white">You're all set! 🚀</h2>
+                <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white">One last step 📄</h2>
                 <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 max-w-xs mx-auto">
-                  Your profile is configured for{' '}
-                  <span className="font-bold text-brand-500">{DOMAINS.find(d => d.id === selectedDomain)?.label}</span>.
-                  Start with a free Explorer challenge or unlock premium tiers.
+                  Your domain is set to{' '}
+                  <span className="font-bold text-indigo-500">{DOMAINS.find(d => d.id === selectedDomain)?.label}</span>.
+                  Now upload your resume — our AI will extract your skills as <strong>unverified claims</strong>. Solve a challenge to verify each one.
                 </p>
               </div>
-              <div className="rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 p-4 space-y-2 text-left">
-                <p className="text-xs font-extrabold text-amber-700 dark:text-amber-400">🎯 Challenge Tiers</p>
-                <div className="space-y-1 text-xs text-slate-600 dark:text-slate-400">
-                  <div className="flex justify-between"><span>🟢 Explorer</span><span className="font-semibold text-emerald-600">Free — 1 challenge</span></div>
-                  <div className="flex justify-between"><span>🔵 Explorer + Builder</span><span className="font-semibold text-blue-600">₹199 — Basic unlock</span></div>
-                  <div className="flex justify-between"><span>🟣 All tiers + Expert Review</span><span className="font-semibold text-purple-600">₹499 — Advanced unlock</span></div>
+              <div className="rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-900/50 p-4 space-y-2 text-left">
+                <p className="text-xs font-extrabold text-indigo-700 dark:text-indigo-400">🔑 How it works</p>
+                <div className="space-y-1.5 text-xs text-slate-600 dark:text-slate-400">
+                  <div className="flex items-center gap-2"><span className="text-indigo-500">①</span><span>Upload resume → AI extracts your skills</span></div>
+                  <div className="flex items-center gap-2"><span className="text-brand-500">②</span><span>Solve a tailored challenge per skill</span></div>
+                  <div className="flex items-center gap-2"><span className="text-emerald-500">③</span><span>Claim flips to <strong>Verified ◈</strong> — badge minted</span></div>
                 </div>
               </div>
-              <button onClick={handleFinish} disabled={loading} className="w-full rounded-xl bg-brand-600 py-3 text-sm font-bold text-white hover:bg-brand-500 transition flex items-center justify-center gap-2 disabled:opacity-50">
+              <button onClick={handleFinish} disabled={loading} className="w-full rounded-xl bg-indigo-600 py-3 text-sm font-bold text-white hover:bg-indigo-500 transition flex items-center justify-center gap-2 disabled:opacity-50">
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                Go to Problem Board 🎉
+                Build my Proof Profile <ArrowRight className="h-4 w-4" />
               </button>
             </div>
           )}

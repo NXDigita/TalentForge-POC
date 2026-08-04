@@ -227,13 +227,51 @@ paths:
       responses:
         '200':
           description: Profile records and achievements
-    post:
+    put:
       summary: Update student portfolio metadata
       security:
         - bearerAuth: []
       responses:
         '200':
           description: Profile records updated
+
+  /students/profile/s2:
+    put:
+      summary: Update extended Profile S2 metadata (skills, certs, links)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Profile S2 records updated
+
+  /students/profile/resume-upload-url:
+    get:
+      summary: Retrieve presigned S3 upload URL for resume PDF
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Returns uploadUrl matching MinIO S3 bucket configurations
+
+  /students/profile/parse-resume:
+    post:
+      summary: Parse uploaded resume using AI
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - s3Key
+              properties:
+                s3Key:
+                  type: string
+      responses:
+        '200':
+          description: Returns extracted skills and education JSON
 
   /students/psychometric/start:
     post:

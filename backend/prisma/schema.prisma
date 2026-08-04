@@ -51,6 +51,12 @@ model User {
   mobileNumber          String?
   profileEmbedding      Unsupported("vector(1536)")?
 
+  // Profile S2 fields
+  skills                Json?     // Array of skill objects: { name: string, level: string }
+  certifications        Json?     // Array of cert objects: { name: string, issuer: string, url: string }
+  links                 Json?     // Array of link objects: { label: string, url: string }
+  resumeS3Key           String?
+
   // Challenge tier unlock (payments)
   unlockedTier          String    @default("free")   // free | basic | advanced
   freeChallengesUsed    Int       @default(0)

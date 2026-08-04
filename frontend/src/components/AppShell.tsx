@@ -45,6 +45,8 @@ export default function AppShell() {
 
   useEffect(() => {
     async function fetchNotifications() {
+      // Skip if tab is hidden — no need to poll when user isn't looking
+      if (document.visibilityState === 'hidden') return;
       try {
         const res = await api.get(`/students/notifications`);
         if (res.data?.notifications) {
@@ -56,8 +58,14 @@ export default function AppShell() {
       }
     }
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 10000);
-    return () => clearInterval(interval);
+    // Poll every 60s instead of 10s — notifications are not real-time critical
+    const interval = setInterval(fetchNotifications, 60_000);
+    // Also fetch immediately when the user switches back to the tab
+    document.addEventListener('visibilitychange', fetchNotifications);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', fetchNotifications);
+    };
   }, [apiUrl]);
 
   const handleMarkAllRead = async () => {

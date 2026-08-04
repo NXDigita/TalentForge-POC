@@ -86,6 +86,124 @@ router.put('/profile', requireAuth, validate(profileUpdateSchema), async (req: A
   }
 });
 
+// ─── PUT /api/students/profile/s2 ────────────────────────────────────────────
+// Updates extended Profile S2 fields (skills, certifications, links)
+const profileS2Schema = z.object({
+  body: z.object({
+    skills: z.array(z.any()).optional(),
+    certifications: z.array(z.any()).optional(),
+    links: z.array(z.any()).optional(),
+    resumeS3Key: z.string().optional(),
+  }),
+});
+
+router.put('/profile/s2', requireAuth, validate(profileS2Schema), async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { skills, certifications, links, resumeS3Key } = req.body;
+    const dataToUpdate: any = {};
+    
+    if (skills !== undefined) dataToUpdate.skills = skills;
+    if (certifications !== undefined) dataToUpdate.certifications = certifications;
+    if (links !== undefined) dataToUpdate.links = links;
+    if (resumeS3Key !== undefined) dataToUpdate.resumeS3Key = resumeS3Key;
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: dataToUpdate,
+      select: {
+        id: true, skills: true, certifications: true, links: true, resumeS3Key: true
+      },
+    });
+
+    return res.json({ ok: true, user: updatedUser });
+  } catch (err) {
+    console.error('Profile S2 update error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── GET /api/students/profile/resume-upload-url ───────────────────────────
+router.get('/profile/resume-upload-url', requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const s3Key = `resumes/${userId}/${Date.now()}.pdf`;
+    const uploadUrl = await getUploadUrl(s3Key, 'application/pdf');
+
+    return res.json({ uploadUrl, s3Key });
+  } catch (err) {
+    console.error('Resume upload URL error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── POST /api/students/profile/parse-resume ───────────────────────────────
+import { getObjectBuffer } from '../services/s3';
+import pdfParse from 'pdf-parse';
+
+router.post('/profile/parse-resume', requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { s3Key } = req.body;
+    if (!s3Key) return res.status(400).json({ error: 's3Key is required' });
+
+    // 1. Download PDF from S3
+    let buffer: Buffer;
+    try {
+      buffer = await getObjectBuffer(s3Key);
+    } catch (err) {
+      console.error('Failed to download resume from S3:', err);
+      return res.status(404).json({ error: 'Resume not found in S3' });
+    }
+
+    // 2. Parse PDF text
+    const pdfData = await pdfParse(buffer);
+    const resumeText = pdfData.text;
+
+    // 3. AI Extraction
+    const adapter = getAIAdapter();
+    const prompt = `
+      Extract the candidate's skills and education from the following resume text.
+      Return the output STRICTLY as a JSON object matching this structure exactly (do not wrap in markdown blocks, just return JSON):
+      {
+        "skills": [
+          { "name": "Skill Name (e.g. React, Node.js)", "level": "Beginner|Intermediate|Advanced" }
+        ],
+        "education": [
+          { "college": "University Name", "degree": "Degree Name", "graduationYear": "YYYY" }
+        ]
+      }
+
+      Resume Text:
+      ${resumeText.substring(0, 4000)} // Limiting length for safety
+    `;
+
+    // We can define a Zod schema to enforce types with the adapter
+    const parseSchema = z.object({
+      skills: z.array(z.object({ name: z.string(), level: z.string() })),
+      education: z.array(z.object({ college: z.string(), degree: z.string(), graduationYear: z.string() }))
+    });
+
+    try {
+      const extractedData = await adapter.generateJSON(prompt, parseSchema);
+      return res.json({ ok: true, data: extractedData });
+    } catch (aiErr) {
+      console.error('AI Resume parsing failed:', aiErr);
+      return res.status(500).json({ error: 'AI parsing failed' });
+    }
+
+  } catch (err) {
+    console.error('Parse resume error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // ─── GET /api/students/notifications ───────────────────────────────────────
 // Returns list of student notifications from Prisma DB and unread count
 router.get('/notifications', requireAuth, async (req: AuthenticatedRequest, res) => {
@@ -229,15 +347,22 @@ router.post('/feedback/format', async (req, res) => {
 });
 
 // ─── GET /api/students/leaderboard ──────────────────────────────────────────
-// Returns paginated leaderboard candidate rankings and top 3 podium entries with DB integration.
+// Returns paginated leaderboard rankings from real DB data only.
 router.get('/leaderboard', async (req, res) => {
   try {
     const page = Math.max(1, parseInt(String(req.query.page || '1'), 10));
     const limit = Math.max(1, parseInt(String(req.query.limit || '10'), 10));
     const tab = String(req.query.tab || 'cohort');
 
-    // Query real DB users with badges count
+    // Build domain filter for cohort/domain tabs
+    const domainFilter: Record<string, unknown> = {};
+    if (tab !== 'cohort' && tab !== 'global') {
+      // tab value matches domain enum values (cse, ece, cs-ai, data-science)
+      domainFilter.domain = tab;
+    }
+
     const dbUsers = await prisma.user.findMany({
+      where: { role: 'STUDENT', ...domainFilter },
       select: {
         id: true,
         name: true,
@@ -248,73 +373,49 @@ router.get('/leaderboard', async (req, res) => {
         isAnonymized: true,
         badges: { select: { id: true, score: true } },
         _count: { select: { submissions: true } },
+        submissions: {
+          where: { status: 'completed' },
+          select: { id: true },
+        },
       },
       orderBy: { xp: 'desc' },
-      take: 50,
+      take: 200,
     });
 
-    const mockSeed = [
-      { id: 'mock-1', name: 'Priya Shah', score: 9840, domain: 'cse', isAnonymized: false, handles: 'priyashah.dev' },
-      { id: 'mock-2', name: 'Marcus Chen', score: 9612, domain: 'ece', isAnonymized: false, handles: 'marcus.dev' },
-      { id: 'mock-3', name: 'Aarav Mehta', score: 9405, domain: 'cse', isAnonymized: false, handles: 'aarav.mehta' },
-      { id: 'mock-4', name: 'Sofia Romano', score: 9308, domain: 'cse', isAnonymized: false, handles: 'sofia.r' },
-      { id: 'mock-5', name: 'Ken Watanabe', score: 9227, domain: 'ece', isAnonymized: false, handles: 'ken.w' },
-    ];
-
-    const mappedDbCandidates = dbUsers.map((u, idx) => {
+    const allCandidates = dbUsers.map((u, idx) => {
       const badgeXp = u.badges.reduce((sum, b) => sum + (b.score || 0) * 10, 0);
       const totalXp = Math.max(u.xp, badgeXp);
       const displayName = u.isAnonymized
         ? `Anonymous Pioneer #${u.id.slice(0, 4).toUpperCase()}`
         : u.name;
+      const totalSubs = u._count.submissions;
+      const passedSubs = u.submissions.length;
+      const passRate = totalSubs > 0 ? Math.round((passedSubs / totalSubs) * 100) : 0;
 
       return {
         id: u.id,
         rank: idx + 1,
         name: displayName,
-        rawName: u.name,
         avatar: '',
-        score: totalXp || 750,
+        score: totalXp || 0,
         badgesCount: u.badges.length,
-        passRate: Math.min(100, 70 + u.badges.length * 10),
-        trend: 12 + idx * 3,
+        passRate,
+        trend: 0,
         isAnonymized: u.isAnonymized,
         domain: u.domain,
-        handles: `${u.name.toLowerCase().replace(/\s+/g, '')}.dev`,
+        handles: `${(u.name || 'user').toLowerCase().replace(/\s+/g, '')}.dev`,
       };
     });
 
-    // Merge DB candidates with fallback seed if fewer than 5 DB users
-    let allCandidates = [...mappedDbCandidates];
-    if (allCandidates.length < 5) {
-      const remainingMocks = mockSeed.slice(allCandidates.length).map((m, i) => ({
-        id: m.id,
-        rank: allCandidates.length + i + 1,
-        name: m.name,
-        rawName: m.name,
-        avatar: '',
-        score: m.score,
-        badgesCount: 3,
-        passRate: 90,
-        trend: 10,
-        isAnonymized: false,
-        domain: m.domain,
-        handles: m.handles,
-      }));
-      allCandidates = [...allCandidates, ...remainingMocks];
-    }
-
-    // Re-rank all combined candidates
+    // Re-sort by XP and assign final ranks
     allCandidates.sort((a, b) => b.score - a.score);
-    allCandidates = allCandidates.map((c, i) => ({ ...c, rank: i + 1 }));
+    allCandidates.forEach((c, i) => { c.rank = i + 1; });
 
     const podium = allCandidates.slice(0, 3);
     const tableCandidates = allCandidates.slice(3);
 
     const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
-    const items = tableCandidates.slice(startIndex, endIndex);
-
+    const items = tableCandidates.slice(startIndex, startIndex + limit);
     const totalItems = tableCandidates.length;
     const totalPages = Math.ceil(totalItems / limit);
 
@@ -323,12 +424,7 @@ router.get('/leaderboard', async (req, res) => {
       podium,
       items,
       allCandidates,
-      pagination: {
-        page,
-        limit,
-        totalItems,
-        totalPages,
-      },
+      pagination: { page, limit, totalItems, totalPages },
     });
   } catch (err) {
     console.error('Leaderboard fetch error:', err);

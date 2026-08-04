@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Award, CheckCircle2, Code2, Flame, ArrowRight, TrendingUp,
-  ShieldCheck, Clock, BookOpen, Users, X, Activity, Shield
+  ShieldCheck, Clock, BookOpen, Users, X, Activity, Shield, FileText
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getProblems, getSubmissions, Problem, Submission } from '../services/api';
@@ -43,6 +43,7 @@ export default function Dashboard() {
 
   // Extra user stats fetched from /api/auth/me (extended fields)
   const [stats, setStats] = useState<Partial<UserStats>>({});
+  const [hasProfile, setHasProfile] = useState(true);
 
   const userTier = user?.tier || 'EXPLORER';
   const userXp = user?.xp || 0;
@@ -54,13 +55,17 @@ export default function Dashboard() {
     async function loadData() {
       try {
         setLoading(true);
-        const [problemsData, submissionsData, meRes] = await Promise.all([
+        const [problemsData, submissionsData, meRes, profileRes] = await Promise.all([
           getProblems(),
           getSubmissions().catch(() => ({ data: [] })),
           api.get('/auth/me').catch(() => ({ data: { user: {} } })),
+          api.get('/students/profile').catch(() => ({ data: {} })),
         ]);
         setProblems(problemsData);
         setSubmissions(submissionsData.data || []);
+        
+        const profile = profileRes.data || {};
+        setHasProfile(!!profile.resumeS3Key || (profile.skills && profile.skills.length > 0));
 
         const meUser = meRes.data?.user || {};
         setStats({
@@ -159,6 +164,28 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Profile Setup Nudge Banner — shows until resume is uploaded */}
+      {!hasProfile && !loading && (
+        <Link
+          to="/profile"
+          className="flex items-center gap-4 rounded-[20px] border border-indigo-500/30 bg-gradient-to-r from-indigo-500/10 to-violet-500/5 p-4 hover:from-indigo-500/20 transition group"
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-500/20 border border-indigo-500/30">
+            <FileText className="h-5 w-5 text-indigo-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-black text-indigo-300 uppercase tracking-wider">Action Required</p>
+            <p className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">
+              Build your Proof Profile to unlock verified skill badges
+            </p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Upload your resume → AI extracts claims → Solve challenges → Claims flip to Verified ◈
+            </p>
+          </div>
+          <ArrowRight className="h-4 w-4 text-indigo-400 shrink-0 group-hover:translate-x-1 transition-transform" />
+        </Link>
+      )}
+
       {/* TOP BANNER */}
       <div className="relative overflow-hidden rounded-[20px] border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-[#0B1120] p-8 shadow-sm transition-colors duration-200">
         {/* Decorative Grid Background */}
@@ -223,9 +250,24 @@ export default function Dashboard() {
 
           {/* Action Card */}
           <div className="w-full md:w-80 shrink-0 rounded-[20px] border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#131B2F] p-6 flex flex-col gap-4 shadow-xl">
-            {isNewStudent ? (
+            {!hasProfile ? (
               <>
                 <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">START HERE</p>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-[10px]">
+                    <span className="rounded bg-indigo-500/20 px-1.5 py-0.5 font-bold text-indigo-600 dark:text-indigo-400 uppercase">REQUIRED</span>
+                    <span className="text-slate-500">Proof Profile Setup</span>
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white">Upload your resume</h3>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Upload your resume to extract claims. Then verify them by solving challenges.</p>
+                <Link to="/profile" className="w-full rounded-xl bg-indigo-600 py-3 text-sm font-bold text-white hover:bg-indigo-500 transition text-center shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 group mt-2">
+                  Build Proof Profile <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                </Link>
+              </>
+            ) : isNewStudent ? (
+              <>
+                <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">VERIFY YOUR SKILLS</p>
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-[10px]">
                     <span className="rounded bg-brand-500/20 px-1.5 py-0.5 font-bold text-brand-600 dark:text-brand-400 uppercase">EASIEST</span>

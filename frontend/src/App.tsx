@@ -1,24 +1,26 @@
 import { Route, Routes } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import AppShell from './components/AppShell';
-import Home from './pages/Home';
-import Profile from './pages/Profile';
-import LoginPage from './pages/Login';
-import RegisterPage from './pages/Register';
-import Dashboard from './pages/Dashboard';
-import ProblemBoard from './pages/ProblemBoard';
-import ProblemDetail from './pages/ProblemDetail';
-import Leaderboard from './pages/Leaderboard';
-import Submissions from './pages/Submissions';
-import Assessment from './pages/Assessment';
-import ReviewerPortal from './pages/ReviewerPortal';
-import EmployerDiscover from './pages/EmployerDiscover';
-import EmployerShortlist from './pages/EmployerShortlist';
-import Guide from './pages/Guide';
-import Learning from './pages/Learning';
-import NotFound from './pages/NotFound';
-import AuthCallback from './pages/AuthCallback';
-import VerifyBadge from './pages/VerifyBadge';
+import { lazy, Suspense } from 'react';
+
+const Home = lazy(() => import('./pages/Home'));
+const Profile = lazy(() => import('./pages/Profile'));
+const LoginPage = lazy(() => import('./pages/Login'));
+const RegisterPage = lazy(() => import('./pages/Register'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const ProblemBoard = lazy(() => import('./pages/ProblemBoard'));
+const ProblemDetail = lazy(() => import('./pages/ProblemDetail'));
+const Leaderboard = lazy(() => import('./pages/Leaderboard'));
+const Submissions = lazy(() => import('./pages/Submissions'));
+const Assessment = lazy(() => import('./pages/Assessment'));
+const ReviewerPortal = lazy(() => import('./pages/ReviewerPortal'));
+const EmployerDiscover = lazy(() => import('./pages/EmployerDiscover'));
+const EmployerShortlist = lazy(() => import('./pages/EmployerShortlist'));
+const Guide = lazy(() => import('./pages/Guide'));
+const Learning = lazy(() => import('./pages/Learning'));
+const NotFound = lazy(() => import('./pages/NotFound'));
+const AuthCallback = lazy(() => import('./pages/AuthCallback'));
+const VerifyBadge = lazy(() => import('./pages/VerifyBadge'));
 import RequireAuth from './components/RequireAuth';
 import RequireRole from './components/RequireRole';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -31,7 +33,15 @@ function App() {
       <ThemeProvider>
         <AuthProvider>
           <Toaster position="top-right" richColors closeButton />
-          <Routes>
+          <Suspense fallback={
+            <div className="flex h-screen w-full items-center justify-center bg-slate-50 dark:bg-slate-950">
+              <div className="flex flex-col items-center gap-4">
+                <div className="h-10 w-10 animate-spin rounded-full border-4 border-brand-500 border-t-transparent" />
+                <p className="text-sm font-semibold text-slate-500">Loading TalentForge...</p>
+              </div>
+            </div>
+          }>
+            <Routes>
             {/* Public Unrestricted Routes */}
             <Route path="/auth-callback" element={<AuthCallback />} />
             <Route path="/verify/:id" element={<VerifyBadge />} />
@@ -74,7 +84,8 @@ function App() {
 
             {/* 404 Catch-All */}
             <Route path="*" element={<NotFound />} />
-          </Routes>
+            </Routes>
+          </Suspense>
         </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>

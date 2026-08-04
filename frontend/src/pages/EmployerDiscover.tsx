@@ -15,9 +15,9 @@ import {
   Cpu,
   BrainCircuit
 } from 'lucide-react';
-import axios from 'axios';
 import { toast } from 'sonner';
 import CandidateDrawer, { CandidateData } from '../components/CandidateDrawer';
+import api from '../services/api';
 
 export default function EmployerDiscover() {
   const [candidates, setCandidates] = useState<CandidateData[]>([]);
@@ -40,26 +40,21 @@ export default function EmployerDiscover() {
   const [roleText, setRoleText] = useState('');
   const [isSmartMatching, setIsSmartMatching] = useState(false);
 
-  const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
-
   useEffect(() => {
     async function fetchData() {
       try {
         setLoading(true);
-        const token = localStorage.getItem('talentforge_token');
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
         // Fetch candidates and current shortlist
         const [candidatesRes, shortlistRes] = await Promise.all([
-          axios.get(`${apiUrl}/employers/candidates`, {
+          api.get(`/employers/candidates`, {
             params: {
               minScore,
               badge: badgeFilter,
               language: languageFilter,
             },
-            headers,
           }),
-          axios.get(`${apiUrl}/employers/shortlist`, { headers }).catch(() => ({ data: [] })),
+          api.get(`/employers/shortlist`).catch(() => ({ data: [] })),
         ]);
 
         const cData: CandidateData[] = candidatesRes.data || [];
@@ -122,17 +117,15 @@ export default function EmployerDiscover() {
     }
 
     fetchData();
-  }, [minScore, badgeFilter, languageFilter, apiUrl]);
+  }, [minScore, badgeFilter, languageFilter]);
 
   // Handle Shortlist Toggle
   const handleToggleShortlist = async (candidateId: string) => {
     const isCurrentlyShortlisted = shortlistedIds.has(candidateId);
-    const token = localStorage.getItem('talentforge_token');
-    const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
     try {
       if (isCurrentlyShortlisted) {
-        await axios.delete(`${apiUrl}/employers/shortlist/${candidateId}`, { headers });
+        await api.delete(`/employers/shortlist/${candidateId}`);
         setShortlistedIds((prev) => {
           const next = new Set(prev);
           next.delete(candidateId);
@@ -140,7 +133,7 @@ export default function EmployerDiscover() {
         });
         toast.info('Candidate removed from shortlist.');
       } else {
-        await axios.post(`${apiUrl}/employers/shortlist`, { candidateId }, { headers });
+        await api.post(`/employers/shortlist`, { candidateId });
         setShortlistedIds((prev) => new Set(prev).add(candidateId));
         toast.success('Candidate added to shortlist!');
       }
@@ -167,10 +160,8 @@ export default function EmployerDiscover() {
     }
     try {
       setIsSmartMatching(true);
-      const token = localStorage.getItem('talentforge_token');
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
       
-      const res = await axios.post(`${apiUrl}/employers/smart-match`, { roleText }, { headers });
+      const res = await api.post(`/employers/smart-match`, { roleText });
       setCandidates(res.data);
       toast.success('AI Smart Match complete! Candidates sorted by vector similarity.');
     } catch (err) {

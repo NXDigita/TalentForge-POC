@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { getAIAdapter } from './ai/aiAdapterFactory';
 import { AIMessage } from './ai/aiAdapter.interface';
+import redis from './redis';
+import crypto from 'crypto';
 
 export const LearningPathSchema = z.object({
   milestones: z.array(z.string()),
@@ -10,11 +12,27 @@ export const LearningPathSchema = z.object({
 
 export type LearningPathResponse = z.infer<typeof LearningPathSchema>;
 
+const LLM_CHAT_DAILY_LIMIT = 100; // Copilot chat tokens/requests per user per 24h
+
 export async function generateLearningPath(
   profile: any,
   domain: string,
   assessmentScore: number
 ): Promise<LearningPathResponse> {
+  const profileHash = crypto.createHash('sha256').update(JSON.stringify(profile)).digest('hex');
+  const cacheKey = `llm:roadmap:${domain}:${profileHash}:${assessmentScore}`;
+  
+  // Try to fetch from Redis first (24h TTL)
+  try {
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      console.log(`[LLMService] Serving Learning Path from Redis Cache for ${domain}`);
+      return JSON.parse(cached);
+    }
+  } catch (err) {
+    console.warn('[LLMService] Redis cache read error:', err);
+  }
+
   const adapter = getAIAdapter();
   const prompt = `
     Generate a personalized developer learning path.
@@ -33,7 +51,16 @@ export async function generateLearningPath(
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const data = await adapter.generateJSON<LearningPathResponse>(prompt, LearningPathSchema);
-      return LearningPathSchema.parse(data);
+      const parsed = LearningPathSchema.parse(data);
+      
+      // Save to Redis for 24 hours (86400 seconds)
+      try {
+        await redis.setex(cacheKey, 86400, JSON.stringify(parsed));
+      } catch (redisErr) {
+        console.warn('[LLMService] Redis cache write error:', redisErr);
+      }
+      
+      return parsed;
     } catch (err) {
       if (attempt === 1) {
         console.warn('[LLMService] Learning Path fallback triggered:', err);
@@ -62,6 +89,25 @@ export async function* streamCopilotChat(
   context: { profile: any; currentPage: string; lastSubmissionScore: number | null },
   mode: string = 'mentor'
 ) {
+  // Rate limit check
+  const userId = context.profile?.id || 'anonymous';
+  const today = new Date().toISOString().split('T')[0];
+  const rateLimitKey = `llm:ratelimit:copilot:${userId}:${today}`;
+  
+  try {
+    const currentCount = await redis.incr(rateLimitKey);
+    if (currentCount === 1) {
+      await redis.expire(rateLimitKey, 86400); // Set expiry for 24 hours on first request
+    }
+    
+    if (currentCount > LLM_CHAT_DAILY_LIMIT) {
+      yield 'Rate limit exceeded: You have reached your daily limit for Copilot messages. Please try again tomorrow.';
+      return;
+    }
+  } catch (err) {
+    console.warn('[LLMService] Rate limit Redis error, bypassing limit:', err);
+  }
+
   const adapter = getAIAdapter();
 
   const systemPrompt = `You are a TalentForge AI Copilot acting as a ${mode}.
