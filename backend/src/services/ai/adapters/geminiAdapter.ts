@@ -1,9 +1,8 @@
-import { GoogleGenAI } from '@google/genai';
 import { AIAdapter, AIMessage, AIRequestOptions } from '../aiAdapter.interface';
 import { MockAdapter } from './mockAdapter';
 
 export class GeminiAdapter implements AIAdapter {
-  private ai: GoogleGenAI | null = null;
+  private ai: any = null;
   private model: string;
   private fallbackMock: MockAdapter;
 
@@ -13,7 +12,12 @@ export class GeminiAdapter implements AIAdapter {
     this.fallbackMock = new MockAdapter();
 
     if (apiKey) {
-      this.ai = new GoogleGenAI({ apiKey });
+      try {
+        const { GoogleGenAI } = require('@google/genai');
+        this.ai = new GoogleGenAI({ apiKey });
+      } catch (err: any) {
+        console.warn(`[GeminiAdapter] Could not load @google/genai SDK package: ${err.message}. Falling back to MockAdapter.`);
+      }
     }
   }
 

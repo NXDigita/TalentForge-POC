@@ -39,6 +39,10 @@ model User {
   selectedDomain        String?
   onboardingComplete    Boolean   @default(false)
 
+  // Profile data & freeze
+  profileFrozen         Boolean   @default(false)
+  mobileNumber          String?
+
   // Challenge tier unlock (payments)
   unlockedTier          String    @default("free")   // free | basic | advanced
   freeChallengesUsed    Int       @default(0)

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
 import Editor from '@monaco-editor/react';
@@ -321,14 +321,14 @@ export default function ProblemDetail() {
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-slate-500 uppercase">Input (stdin):</label>
                         <pre className="rounded-lg bg-slate-900 p-2.5 font-mono text-xs text-emerald-400 border border-slate-800 overflow-x-auto">
-                          {tc.stdin}
+                          {tc.stdin ?? (tc as any).input ?? ''}
                         </pre>
                       </div>
 
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-slate-500 uppercase">Expected Output:</label>
                         <pre className="rounded-lg bg-slate-900 p-2.5 font-mono text-xs text-blue-400 border border-slate-800 overflow-x-auto">
-                          {tc.expectedStdout}
+                          {tc.expectedStdout ?? (tc as any).expected ?? ''}
                         </pre>
                       </div>
                     </div>
@@ -347,22 +347,33 @@ export default function ProblemDetail() {
           <Panel defaultSize={55} minSize={30} className="flex flex-col bg-slate-950">
             {/* Editor Area */}
             <div className="flex-1 relative">
-              <Editor
-                height="100%"
-                language={language === 'python' ? 'python' : language === 'javascript' ? 'javascript' : 'java'}
-                value={code}
-                onChange={(val) => setCode(val || '')}
-                theme={theme === 'dark' ? 'vs-dark' : 'vs-dark'}
-                options={{
-                  fontSize: 13,
-                  fontFamily: 'Fira Code, JetBrains Mono, monospace',
-                  minimap: { enabled: false },
-                  scrollBeyondLastLine: false,
-                  automaticLayout: true,
-                  padding: { top: 12, bottom: 12 },
-                  lineNumbersMinChars: 3,
-                }}
-              />
+              <Suspense
+                fallback={
+                  <div className="flex h-full items-center justify-center bg-slate-950">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+                      <p className="text-xs text-slate-500">Loading editor...</p>
+                    </div>
+                  </div>
+                }
+              >
+                <Editor
+                  height="100%"
+                  language={language === 'python' ? 'python' : language === 'javascript' ? 'javascript' : 'java'}
+                  value={code}
+                  onChange={(val) => setCode(val || '')}
+                  theme={theme === 'dark' ? 'vs-dark' : 'vs-dark'}
+                  options={{
+                    fontSize: 13,
+                    fontFamily: 'Fira Code, JetBrains Mono, monospace',
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true,
+                    padding: { top: 12, bottom: 12 },
+                    lineNumbersMinChars: 3,
+                  }}
+                />
+              </Suspense>
             </div>
 
             {/* Collapsible Results Panel Shell */}

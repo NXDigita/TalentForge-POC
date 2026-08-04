@@ -15,7 +15,6 @@
  */
 
 import 'dotenv/config';
-import * as Sentry from '@sentry/node';
 import { Worker, Job, UnrecoverableError } from 'bullmq';
 import IORedis from 'ioredis';
 import { Emitter } from '@socket.io/redis-emitter';
@@ -27,10 +26,15 @@ import { precheckCode }       from './grader/precheck';
 
 // Sentry Worker Observability Setup
 if (process.env.SENTRY_DSN) {
-  Sentry.init({
-    dsn: process.env.SENTRY_DSN,
-    tracesSampleRate: 1.0,
-  });
+  try {
+    const Sentry = require('@sentry/node');
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN,
+      tracesSampleRate: 1.0,
+    });
+  } catch (err: any) {
+    console.warn('[Worker] Sentry initialization failed (likely npm version mismatch), skipping observability:', err.message);
+  }
 }
 
 // Custom Unretryable User Error Class
@@ -62,9 +66,24 @@ interface ProblemCasesResponse {
 // ─── Redis / Socket.IO emitter ────────────────────────────────────────────────
 
 const redisUrl   = process.env.REDIS_URL ?? 'redis://:redis_dev_secret@localhost:6380';
-const connection = new IORedis(redisUrl, { maxRetriesPerRequest: null });
+const connection = new IORedis(redisUrl, {
+  maxRetriesPerRequest: null,
+  enableOfflineQueue:   false,
+  retryStrategy: (times) => {
+    if (times > 3) {
+      console.warn('[Worker] Redis unreachable after 3 retries — grading jobs will queue once Redis is available.');
+      return null; // Stop retrying (ioredis will emit error once, then stop)
+    }
+    return Math.min(times * 500, 2000); // backoff: 500ms, 1000ms, 1500ms
+  },
+});
 
 connection.on('error', (err) => {
+  // Suppress noisy ECONNREFUSED floods — Redis being down is expected in local dev without Docker
+  if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
+    // Only log once (retryStrategy above limits retries)
+    return;
+  }
   console.error('[Worker] Redis client error:', err.message);
 });
 
@@ -157,7 +176,7 @@ async function runGrader(
 }> {
   const { submissionId, problemId, s3Key, language } = job.data;
 
-  const backendUrl = process.env.BACKEND_INTERNAL_URL ?? 'http://localhost:5000';
+  const backendUrl = process.env.BACKEND_INTERNAL_URL ?? 'http://localhost:5001';
   const secret     = process.env.INTERNAL_SECRET      ?? 'tf-internal';
 
   // 1. Mark as running
@@ -281,7 +300,7 @@ const worker = new Worker<GradeJobData>(
       const scores = await runGrader(job);
 
       // Patch Submission row in DB via backend internal API
-      const backendUrl = process.env.BACKEND_INTERNAL_URL ?? 'http://localhost:5000';
+      const backendUrl = process.env.BACKEND_INTERNAL_URL ?? 'http://localhost:5001';
       const secret     = process.env.INTERNAL_SECRET      ?? 'tf-internal';
 
       const patchRes = await fetch(`${backendUrl}/internal/submissions/${submissionId}`, {
@@ -352,6 +371,9 @@ worker.on('stalled', (jobId) => {
 });
 
 worker.on('error', (err) => {
+  // BullMQ emits worker errors when the Redis connection is lost
+  // Suppress ECONNREFUSED to avoid duplicate logs (already handled by connection.on('error'))
+  if ((err as any).code === 'ECONNREFUSED' || (err as any).code === 'ENOTFOUND') return;
   console.error('[Worker] Worker runtime error:', err.message);
 });
 

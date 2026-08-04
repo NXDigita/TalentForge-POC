@@ -1,5 +1,4 @@
 import 'dotenv/config';
-import * as Sentry from '@sentry/node';
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
@@ -24,10 +23,15 @@ import { publicApiRateLimiter } from './middleware/rateLimiter';
 
 // Sentry Observability Setup
 if (process.env.SENTRY_DSN) {
-  Sentry.init({
-    dsn: process.env.SENTRY_DSN,
-    tracesSampleRate: 1.0,
-  });
+  try {
+    const Sentry = require('@sentry/node');
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN,
+      tracesSampleRate: 1.0,
+    });
+  } catch (err: any) {
+    console.warn('[Backend] Sentry initialization failed (likely npm version mismatch), skipping observability:', err.message);
+  }
 }
 
 const app = express();
@@ -113,25 +117,35 @@ io.on('connection', (socket) => {
 });
 
 // ─── Start server ─────────────────────────────────────────────────────────────
-const envPort = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
-const basePort = envPort === 3000 ? 5000 : envPort;
+const envPort = process.env.PORT ? parseInt(process.env.PORT, 10) : 5001;
+const basePort = envPort === 3000 ? 5001 : envPort;
 const portOptions = [basePort, basePort + 1, basePort + 2];
 
 function startServer(index = 0) {
+  if (index >= portOptions.length) {
+    console.error(`Failed to bind backend server after trying ports: ${portOptions.join(', ')}`);
+    process.exit(1);
+  }
+
   const port = portOptions[index];
 
-  server.listen(port, () => {
-    console.log(`Backend running on http://localhost:${port}`);
-  });
-
-  server.on('error', (error: NodeJS.ErrnoException) => {
-    if (index < portOptions.length - 1 && (error.code === 'EADDRINUSE' || error.code === 'EACCES')) {
-      console.warn(`Port ${port} unavailable (${error.code}). Trying ${portOptions[index + 1]}...`);
+  const onError = (error: NodeJS.ErrnoException) => {
+    server.removeListener('error', onError);
+    if (error.code === 'EADDRINUSE' || error.code === 'EACCES') {
+      console.warn(`Port ${port} unavailable (${error.code}). Trying port ${portOptions[index + 1]}...`);
+      try { server.close(); } catch {}
       startServer(index + 1);
     } else {
       console.error(`Failed to start backend on port ${port}:`, error.message);
       process.exit(1);
     }
+  };
+
+  server.once('error', onError);
+
+  server.listen(port, () => {
+    server.removeListener('error', onError);
+    console.log(`Backend running on http://localhost:${port}`);
   });
 }
 

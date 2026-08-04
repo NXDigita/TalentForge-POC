@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Bell, Check, Sparkles, X, ShieldCheck } from 'lucide-react';
-import axios from 'axios';
+import api from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import OnboardingTour from './OnboardingTour';
@@ -43,9 +43,7 @@ export default function AppShell() {
   useEffect(() => {
     async function fetchNotifications() {
       try {
-        const token = localStorage.getItem('talentforge_token');
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        const res = await axios.get(`${apiUrl}/students/notifications`, { headers });
+        const res = await api.get(`/students/notifications`);
         if (res.data?.notifications) {
           setNotifications(res.data.notifications);
           setUnreadCount(res.data.unreadCount || 0);
@@ -61,9 +59,7 @@ export default function AppShell() {
 
   const handleMarkAllRead = async () => {
     try {
-      const token = localStorage.getItem('talentforge_token');
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      await axios.post(`${apiUrl}/students/notifications/read`, {}, { headers });
+      await api.post(`/students/notifications/read`);
     } catch (e) {
       // Fallback update
     }

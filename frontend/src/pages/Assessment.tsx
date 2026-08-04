@@ -16,6 +16,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import axios from 'axios';
+import api from '../services/api';
 import { toast } from 'sonner';
 import RadarChart, { TraitScore } from '../components/RadarChart';
 
@@ -337,6 +338,20 @@ export default function Assessment() {
     }
   }, [isCompleted]);
 
+  const handleSaveProof = async () => {
+    try {
+      const scoresMap: Record<string, number> = {};
+      traitScores.forEach((t) => {
+        scoresMap[t.trait] = t.value;
+      });
+      await api.post('/students/assessment/save', { scores: scoresMap });
+      toast.success('Psychometric assessment proof saved to candidate profile!');
+    } catch (err) {
+      toast.error('Failed to save assessment proof');
+      console.error(err);
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-16 font-sans text-slate-900 dark:text-slate-100">
       {/* Top Header Banner */}
@@ -639,7 +654,7 @@ export default function Assessment() {
               </button>
 
               <button
-                onClick={() => toast.success('Psychometric assessment proof saved to candidate profile!')}
+                onClick={handleSaveProof}
                 className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-purple-500/20 hover:bg-purple-500 transition"
               >
                 <CheckCircle2 className="h-4 w-4" /> Save Proof to Profile

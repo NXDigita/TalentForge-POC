@@ -35,6 +35,52 @@ router.get('/profile', requireAuth, async (req: AuthenticatedRequest, res) => {
   }
 });
 
+// ─── PUT /api/students/profile ───────────────────────────────────────────────
+// Updates profile data and optionally freezes it
+const profileUpdateSchema = z.object({
+  body: z.object({
+    name: z.string().min(2, 'Name must be at least 2 characters long').optional(),
+    mobileNumber: z.string().optional(),
+    freezeProfile: z.boolean().optional(),
+  }),
+});
+
+router.put('/profile', requireAuth, validate(profileUpdateSchema), async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const existingUser = await prisma.user.findUnique({ where: { id: userId } });
+    if (!existingUser) return res.status(404).json({ error: 'User not found' });
+
+    if (existingUser.profileFrozen) {
+      return res.status(403).json({ error: 'Profile is frozen and cannot be updated.' });
+    }
+
+    const { name, mobileNumber, freezeProfile } = req.body;
+    
+    const dataToUpdate: any = {};
+    if (name !== undefined) dataToUpdate.name = name;
+    if (mobileNumber !== undefined) dataToUpdate.mobileNumber = mobileNumber;
+    if (freezeProfile) dataToUpdate.profileFrozen = true;
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: dataToUpdate,
+      select: {
+        id: true, name: true, email: true,
+        domain: true, tier: true, xp: true,
+        profileFrozen: true, mobileNumber: true,
+      },
+    });
+
+    return res.json({ ok: true, user: updatedUser });
+  } catch (err) {
+    console.error('Profile update error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // ─── GET /api/students/notifications ───────────────────────────────────────
 // Returns list of student notifications from Prisma DB and unread count
 router.get('/notifications', requireAuth, async (req: AuthenticatedRequest, res) => {
@@ -127,6 +173,33 @@ router.post('/assessment/interpret', async (req, res) => {
     });
   } catch (err) {
     console.error('Assessment interpretation error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── POST /api/students/assessment/save ──────────────────────────────────────
+// Saves psychometric assessment results to the candidate's persistent profile
+router.post('/assessment/save', requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { scores = {} } = req.body;
+
+    const logical = Math.round(scores['Logical Reasoning'] || 0);
+    const detail = Math.round(scores['Attention to Detail'] || 0);
+    const persistence = Math.round(scores['Tenacity / Persistence'] || 0);
+    const learning = Math.round(scores['Learning Agility'] || 0);
+
+    const profile = await prisma.psychProfile.upsert({
+      where: { userId },
+      update: { logical, detail, persistence, learning },
+      create: { userId, logical, detail, persistence, learning },
+    });
+
+    return res.json({ success: true, profile });
+  } catch (err) {
+    console.error('Assessment save error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -482,21 +555,33 @@ router.get('/problems', async (req, res) => {
     if (tier)   filter.tier   = String(tier);
     if (domain) filter.domain = String(domain);
 
-    let problems = await prisma.problem.findMany({
-      where: filter,
-      select: {
-        id: true, title: true, slug: true,
-        description: true, tier: true,
-        domain: true, reward: true,
-        publicTestCases: true,
-        createdAt: true,
-        _count: { select: { submissions: true } },
-      },
-      orderBy: { createdAt: 'asc' },
-    });
+    let problems: any[] = [];
+    try {
+      problems = await Promise.race([
+        prisma.problem.findMany({
+          where: filter,
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+            description: true,
+            tier: true,
+            domain: true,
+            reward: true,
+            publicTestCases: true,
+            createdAt: true,
+            _count: { select: { submissions: true } },
+          },
+          orderBy: { createdAt: 'asc' },
+        }),
+        new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error('DB Timeout')), 1500)),
+      ]);
+    } catch {
+      problems = [];
+    }
 
     // Fallback seed array if DB returns empty
-    if (problems.length === 0) {
+    if (!problems || problems.length === 0) {
       problems = [
         { id: 'p1', title: 'Two Sum', slug: 'two-sum', description: 'Given an array of integers nums and an integer target...', tier: 'Explorer', domain: 'cse', reward: 100, publicTestCases: [{ input: '[2,7,11,15]\n9', expected: '[0,1]' }], createdAt: new Date(), _count: { submissions: 12 } },
         { id: 'p2', title: 'LRU Cache System', slug: 'lru-cache', description: 'Design a data structure that follows the constraints of a Least Recently Used (LRU) cache...', tier: 'Builder', domain: 'cse', reward: 150, publicTestCases: [{ input: 'capacity=2\nput(1,1)', expected: 'null' }], createdAt: new Date(), _count: { submissions: 8 } },
@@ -522,17 +607,29 @@ router.get('/problems/:slug', async (req, res) => {
   try {
     const { slug } = req.params;
 
-    let problem = await prisma.problem.findUnique({
-      where: { slug },
-      select: {
-        id: true, title: true, slug: true,
-        description: true, tier: true,
-        domain: true, reward: true,
-        publicTestCases: true,
-        createdAt: true,
-        _count: { select: { submissions: true } },
-      },
-    });
+    let problem: any = null;
+    try {
+      problem = await Promise.race([
+        prisma.problem.findUnique({
+          where: { slug },
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+            description: true,
+            tier: true,
+            domain: true,
+            reward: true,
+            publicTestCases: true,
+            createdAt: true,
+            _count: { select: { submissions: true } },
+          },
+        }),
+        new Promise<null>((_, reject) => setTimeout(() => reject(new Error('DB Timeout')), 1500)),
+      ]);
+    } catch {
+      problem = null;
+    }
 
     // If problem not in DB, check pre-seeded fallbacks or generate AI problem structure
     if (!problem) {

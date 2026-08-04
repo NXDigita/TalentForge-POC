@@ -36,7 +36,7 @@ import { toast } from 'sonner';
 import BadgeCard, { BadgeData } from '../components/BadgeCard';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { getUserBadges } from '../services/api';
+import api, { getUserBadges } from '../services/api';
 
 type CandidateTabType =
   | 'personal'
@@ -77,9 +77,17 @@ function StudentCandidateProfileView() {
   const [saving, setSaving] = useState(false);
 
   // 1. Personal Information State
+  const profileFrozen = (user as any)?.profileFrozen || false;
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [fullName, setFullName] = useState(user?.name || 'Demo Student');
-  const [mobileNumber, setMobileNumber] = useState('+91 98765 43210');
+  const [mobileNumber, setMobileNumber] = useState((user as any)?.mobileNumber || '+91 98765 43210');
+
+  useEffect(() => {
+    if (user) {
+      if (user.name) setFullName(user.name);
+      if ((user as any).mobileNumber) setMobileNumber((user as any).mobileNumber);
+    }
+  }, [user]);
   const [dob, setDob] = useState('2003-05-15');
   const [gender, setGender] = useState('Male');
   const [country, setCountry] = useState('India');
@@ -172,12 +180,32 @@ function StudentCandidateProfileView() {
   // 9. Preferences State
   const [recruiterVisible, setRecruiterVisible] = useState(true);
 
-  const handleSave = (sectionName: string) => {
-    setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
-      toast.success(`${sectionName} updated successfully!`);
-    }, 500);
+  const handleSave = async (sectionName: string) => {
+    if (sectionName === 'Personal Information') {
+      try {
+        setSaving(true);
+        await api.put('/students/profile', {
+          name: fullName,
+          mobileNumber,
+          freezeProfile: true, // Freeze the profile upon save
+        });
+        
+        // Let's pretend user state updates via a reload or we just notify them
+        // Ideally we'd call updateAuthUser, but a reload works too if no method is available
+        window.location.reload(); 
+        toast.success(`${sectionName} updated and frozen successfully!`);
+      } catch (err: any) {
+        toast.error(err.response?.data?.error || 'Failed to update profile');
+      } finally {
+        setSaving(false);
+      }
+    } else {
+      setSaving(true);
+      setTimeout(() => {
+        setSaving(false);
+        toast.success(`${sectionName} updated successfully!`);
+      }, 500);
+    }
   };
 
   const addSkill = () => {
@@ -316,7 +344,8 @@ function StudentCandidateProfileView() {
                 type="text"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-4 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none"
+                disabled={profileFrozen}
+                className={`w-full rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none ${profileFrozen ? 'bg-slate-100 dark:bg-slate-900/50 cursor-not-allowed opacity-70' : 'bg-slate-50 dark:bg-slate-950'}`}
               />
             </div>
             <div className="space-y-2">
@@ -334,18 +363,29 @@ function StudentCandidateProfileView() {
                 type="text"
                 value={mobileNumber}
                 onChange={(e) => setMobileNumber(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-4 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none"
+                disabled={profileFrozen}
+                className={`w-full rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none ${profileFrozen ? 'bg-slate-100 dark:bg-slate-900/50 cursor-not-allowed opacity-70' : 'bg-slate-50 dark:bg-slate-950'}`}
               />
             </div>
           </div>
-          <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-800">
-            <button
-              onClick={() => handleSave('Personal Information')}
-              className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-brand-500/20"
-            >
-              <Save className="h-4 w-4" /> Save Personal Details
-            </button>
-          </div>
+          {!profileFrozen && (
+            <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-800">
+              <button
+                onClick={() => handleSave('Personal Information')}
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-brand-500/20 hover:bg-brand-500 transition disabled:opacity-50"
+              >
+                <Save className="h-4 w-4" /> Save & Freeze Personal Details
+              </button>
+            </div>
+          )}
+          {profileFrozen && (
+            <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-800">
+              <span className="text-xs font-bold text-emerald-500 flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4" /> Profile details frozen
+              </span>
+            </div>
+          )}
         </div>
       )}
 
