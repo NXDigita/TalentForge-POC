@@ -6,6 +6,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import OnboardingTour from './OnboardingTour';
 import CopilotDrawer from './CopilotDrawer';
+import FeedbackWidget from './FeedbackWidget';
 
 interface NotificationItem {
   id: string;
@@ -421,6 +422,7 @@ export default function AppShell() {
       </div>
       <CopilotDrawer isOpen={isCopilotOpen} onClose={() => setIsCopilotOpen(false)} />
       <OnboardingTour />
+      <FeedbackWidget />
     </div>
   );
 }

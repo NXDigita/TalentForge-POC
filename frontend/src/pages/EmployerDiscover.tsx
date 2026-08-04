@@ -12,6 +12,8 @@ import {
   ArrowUpDown,
   Bot,
   Code2,
+  Cpu,
+  BrainCircuit
 } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -33,6 +35,10 @@ export default function EmployerDiscover() {
   // Drawer State
   const [selectedCandidate, setSelectedCandidate] = useState<CandidateData | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  // Smart Match State
+  const [roleText, setRoleText] = useState('');
+  const [isSmartMatching, setIsSmartMatching] = useState(false);
 
   const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
 
@@ -154,6 +160,27 @@ export default function EmployerDiscover() {
     }
   };
 
+  const handleSmartMatch = async () => {
+    if (!roleText.trim()) {
+      toast.error('Please paste a Job Description first.');
+      return;
+    }
+    try {
+      setIsSmartMatching(true);
+      const token = localStorage.getItem('talentforge_token');
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      
+      const res = await axios.post(`${apiUrl}/employers/smart-match`, { roleText }, { headers });
+      setCandidates(res.data);
+      toast.success('AI Smart Match complete! Candidates sorted by vector similarity.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Smart match failed. Check backend console.');
+    } finally {
+      setIsSmartMatching(false);
+    }
+  };
+
   const handleOpenDrawer = (c: CandidateData) => {
     setSelectedCandidate({
       ...c,
@@ -200,6 +227,40 @@ export default function EmployerDiscover() {
               Shortlisted: <strong className="text-amber-400 font-mono text-sm ml-1">{shortlistedIds.size} Candidates</strong>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* AI Smart Matching Block */}
+      <div className="rounded-3xl border border-purple-500/30 bg-purple-950/20 p-6 shadow-sm space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <BrainCircuit className="h-5 w-5 text-purple-400" />
+          <h3 className="text-sm font-black text-white">AI Smart Match (pgvector)</h3>
+        </div>
+        <p className="text-xs text-slate-400">
+          Paste your Job Description below. We'll embed it into a vector and use cosine similarity to find the best candidate matches.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-4">
+          <textarea
+            value={roleText}
+            onChange={(e) => setRoleText(e.target.value)}
+            placeholder="e.g. We need a backend engineer proficient in Node.js, Python, and system design for distributed architectures..."
+            className="flex-1 rounded-xl bg-slate-900 border border-slate-700 p-3 text-sm text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 min-h-[80px]"
+          />
+          <button
+            onClick={handleSmartMatch}
+            disabled={isSmartMatching}
+            className="shrink-0 h-[80px] rounded-xl bg-purple-600 hover:bg-purple-500 px-6 font-bold text-white transition flex items-center justify-center gap-2 shadow-lg shadow-purple-900/50 disabled:opacity-50"
+          >
+            {isSmartMatching ? (
+              <>
+                <Cpu className="h-5 w-5 animate-pulse" /> Matching...
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-5 w-5" /> Smart Match
+              </>
+            )}
+          </button>
         </div>
       </div>
 
@@ -325,6 +386,11 @@ export default function EmployerDiscover() {
                           <div>
                             <span className="font-bold text-slate-900 dark:text-white block">{c.name}</span>
                             <span className="text-[10px] text-slate-400">{c.email}</span>
+                            {c.matchPercent !== undefined && (
+                              <div className="mt-1 inline-flex items-center gap-1 rounded bg-purple-500/10 px-1.5 py-0.5 text-[9px] font-bold text-purple-400 border border-purple-500/20">
+                                <BrainCircuit className="h-3 w-3" /> {c.matchPercent}% Match
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>

@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { requireAuth, AuthenticatedRequest } from '../middleware/authMiddleware';
+import { getAIAdapter } from '../services/ai/aiAdapterFactory';
+import { sendShortlistEmail } from '../services/emailService';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -179,7 +181,16 @@ router.post('/shortlist', requireAuth, async (req: AuthenticatedRequest, res) =>
         employerId,
         candidateId,
       },
+      include: {
+        user: true,
+      }
     });
+
+    // Send mock email alert
+    const employerName = req.user?.name || 'A Top Tech Employer';
+    const candidateName = item.user?.name || 'TalentForge Candidate';
+    const candidateEmail = item.user?.email || 'candidate@example.com';
+    await sendShortlistEmail(candidateEmail, candidateName, employerName);
 
     return res.json({ ok: true, shortlist: item });
   } catch (err) {
@@ -207,6 +218,93 @@ router.delete('/shortlist/:candidateId', requireAuth, async (req: AuthenticatedR
     return res.json({ ok: true, message: 'Candidate removed from shortlist' });
   } catch (err) {
     console.error('[EmployersRoute] Delete shortlist error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/employers/smart-match
+ * Vector search candidates using pgvector and LLM embeddings
+ */
+router.post('/smart-match', requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { roleText } = req.body;
+    if (!roleText) {
+      return res.status(400).json({ error: 'roleText is required for smart matching' });
+    }
+
+    // 1. Generate embedding for the job description/role text
+    const aiAdapter = getAIAdapter();
+    const roleEmbedding = await aiAdapter.generateEmbedding(roleText);
+
+    // 2. Format embedding to vector string for Postgres: "[1.2, 3.4, ...]"
+    const vectorString = `[${roleEmbedding.join(',')}]`;
+
+    // 3. Raw SQL pgvector query (Cosine Distance <=>)
+    // Distance 0 = identical, larger = less similar.
+    // We normalize to a % score (e.g., (1 - distance) * 100)
+    const matches: any[] = await prisma.$queryRaw`
+      SELECT 
+        u.id, u.name, u.email, u.domain, u.tier, u.xp,
+        u."isAnonymized", u."profilePublic",
+        1 - (u."profileEmbedding" <=> ${vectorString}::vector) as similarity
+      FROM "User" u
+      WHERE u.role = 'STUDENT' AND u."profileEmbedding" IS NOT NULL
+      ORDER BY u."profileEmbedding" <=> ${vectorString}::vector ASC
+      LIMIT 20
+    `;
+
+    // 4. Hydrate candidates with badges & best submissions manually
+    // (since $queryRaw doesn't include relations natively)
+    const userIds = matches.map((m) => m.id);
+    const usersWithRelations = await prisma.user.findMany({
+      where: { id: { in: userIds } },
+      include: {
+        badges: true,
+        psychProfile: true,
+        submissions: { orderBy: { score: 'desc' }, include: { problem: true } },
+      },
+    });
+
+    // 5. Merge and format the output
+    const formattedCandidates = matches.map((m) => {
+      const uFull = usersWithRelations.find((u) => u.id === m.id);
+      if (!uFull) return null;
+
+      const bestSub = uFull.submissions[0] || null;
+      const totalScore = bestSub?.score ?? (m.xp > 0 ? Math.min(100, Math.round(m.xp / 10)) : 88);
+      const isPublic = m.profilePublic ?? true;
+      
+      let bestCodeSample = bestSub?.code || `# Two Sum Solution in Python 3\ndef twoSum(nums, target):\n    pass`;
+      if (!isPublic) {
+        bestCodeSample = `// [PRIVACY PROTECTED]`;
+      }
+
+      // Calculate match percentage (incorporating basic score weight optionally)
+      // Just map similarity to 0-100%
+      const matchPercent = Math.max(0, Math.min(100, Math.round(m.similarity * 100)));
+
+      return {
+        id: m.id,
+        name: m.isAnonymized ? \`Anonymous Pioneer #\${m.id.slice(0, 4).toUpperCase()}\` : m.name,
+        email: m.email,
+        domain: (m.domain || 'CSE').toUpperCase(),
+        tier: m.tier || 'Explorer',
+        score: totalScore,
+        badges: uFull.badges,
+        profilePublic: isPublic,
+        psychProfile: uFull.psychProfile || { logical: 92, detail: 88, persistence: 95, learning: 90 },
+        bestProblem: bestSub?.problem?.title || 'Two Sum',
+        bestLanguage: bestSub?.language || 'python',
+        bestCodeSample,
+        matchPercent, // The AI match score!
+        submittedAt: bestSub?.createdAt,
+      };
+    }).filter(Boolean);
+
+    return res.json(formattedCandidates);
+  } catch (err) {
+    console.error('[EmployersRoute] Smart match error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

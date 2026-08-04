@@ -828,4 +828,62 @@ router.get('/submissions/:id', requireAuth, async (req: AuthenticatedRequest, re
   }
 });
 
+// ─── GET /api/students/applications ──────────────────────────────────────────
+// Returns the employers who have shortlisted this student
+router.get('/applications', requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const shortlists = await prisma.shortlist.findMany({
+      where: { candidateId: userId },
+      orderBy: { createdAt: 'desc' },
+      // Note: Employer is just another User in this POC structure
+    });
+
+    // Since we don't have a full company table, we just return the raw shortlist + mock company names
+    const applications = shortlists.map((s, idx) => ({
+      id: s.id,
+      companyName: `Tech Corp ${idx + 1}`, // Placeholder for demo
+      employerId: s.employerId,
+      status: 'Shortlisted',
+      shortlistedAt: s.createdAt,
+    }));
+
+    return res.json(applications);
+  } catch (err) {
+    console.error('Applications fetch error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── POST /api/students/feedback ─────────────────────────────────────────────
+// Submit platform feedback (Beta Launch feature)
+const feedbackSchema = z.object({
+  body: z.object({
+    message: z.string().min(5),
+    type: z.enum(['bug', 'idea', 'other']).default('bug'),
+  }),
+});
+
+router.post('/feedback', requireAuth, validate(feedbackSchema), async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    const { message, type } = req.body;
+
+    const feedback = await prisma.platformFeedback.create({
+      data: {
+        userId: userId || null,
+        message,
+        type,
+      },
+    });
+
+    return res.json({ ok: true, feedback });
+  } catch (err) {
+    console.error('Feedback submit error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

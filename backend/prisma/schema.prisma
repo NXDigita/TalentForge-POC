@@ -239,3 +239,12 @@ model SkillScore {
   @@unique([userId, skill])
 }
 
+model PlatformFeedback {
+  id        String   @id @default(uuid())
+  userId    String?
+  message   String
+  type      String   @default("bug") // bug, idea, other
+  createdAt DateTime @default(now())
+}
+
+

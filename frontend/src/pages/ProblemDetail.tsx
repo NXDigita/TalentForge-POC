@@ -377,15 +377,14 @@ export default function ProblemDetail() {
             </div>
 
             {/* Collapsible Results Panel Shell */}
-            <BadgeCelebrationModal
-              isOpen={showCelebrationModal}
-              onClose={() => setShowCelebrationModal(false)}
-              badgeTitle={`${problem.title} Verified Badge`}
-              problemTitle={problem.title}
-              score={result?.total ?? (result as any)?.scores?.total ?? 98}
-              status="AI_VERIFIED"
-              verifyId={submissionId || undefined}
-            />
+            {showCelebrationModal && (
+              <BadgeCelebrationModal
+                onClose={() => setShowCelebrationModal(false)}
+                badgeTitle={`${problem.title} Verified Badge`}
+                score={result?.total ?? (result as any)?.scores?.total ?? 98}
+                badgeId={submissionId || undefined}
+              />
+            )}
             <ResultsPanel status={status} result={result} logs={logs} expertReview={expertReview} />
           </Panel>
         </PanelGroup>

@@ -48,6 +48,7 @@ type CandidateTabType =
   | 'social'
   | 'blockchain'
   | 'security'
+  | 'applications'
   | 'preferences';
 
 export default function Profile() {
@@ -85,6 +86,21 @@ function StudentCandidateProfileView() {
 
   const [profilePublic, setProfilePublic] = useState((user as any)?.profilePublic ?? true);
   const [skillScores, setSkillScores] = useState<any[]>((user as any)?.skillScores || []);
+  const [applications, setApplications] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function fetchApplications() {
+      try {
+        const res = await api.get('/students/applications');
+        setApplications(res.data || []);
+      } catch (err) {
+        console.warn('Failed to fetch applications:', err);
+      }
+    }
+    if (user) {
+      fetchApplications();
+    }
+  }, [user]);
 
   useEffect(() => {
     if (user) {
@@ -287,6 +303,7 @@ function StudentCandidateProfileView() {
     { id: 'resume', label: 'Resume', icon: FileText },
     { id: 'social', label: 'Social Links', icon: Link2 },
     { id: 'blockchain', label: 'Blockchain', icon: ShieldCheck },
+    { id: 'applications', label: 'Applications', icon: Building },
     { id: 'security', label: 'Security', icon: Lock },
     { id: 'preferences', label: 'Preferences', icon: Settings },
   ];
@@ -590,8 +607,44 @@ function StudentCandidateProfileView() {
         </div>
       )}
 
+      {/* Tab: Applications */}
+      {activeTab === 'applications' && (
+        <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-sm space-y-6">
+          <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
+            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Building className="h-5 w-5 text-brand-500" /> Employer Shortlists & Applications
+            </h2>
+          </div>
+          
+          {applications.length === 0 ? (
+            <div className="text-center py-8 text-slate-500 text-sm border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
+              No applications or shortlists yet. Keep completing challenges!
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {applications.map((app) => (
+                <div key={app.id} className="flex items-center justify-between p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
+                  <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 rounded-xl bg-purple-600/20 text-purple-400 font-black flex items-center justify-center border border-purple-500/30">
+                      <Building className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 dark:text-white text-sm">{app.companyName}</h3>
+                      <p className="text-xs text-slate-500">Shortlisted on {new Date(app.shortlistedAt).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                  <div className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-3 py-1 text-[10px] font-bold text-emerald-400 border border-emerald-500/30">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> {app.status}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Fallback tabs preview */}
-      {activeTab !== 'personal' && activeTab !== 'achievements' && activeTab !== 'resume' && activeTab !== 'skills' && activeTab !== 'social' && activeTab !== 'preferences' && (
+      {activeTab !== 'personal' && activeTab !== 'achievements' && activeTab !== 'resume' && activeTab !== 'skills' && activeTab !== 'social' && activeTab !== 'applications' && activeTab !== 'preferences' && (
         <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-sm space-y-4">
           <h2 className="text-base font-bold text-slate-900 dark:text-white capitalize">{activeTab} Settings</h2>
           <p className="text-xs text-slate-400">Candidate profile settings saved.</p>
