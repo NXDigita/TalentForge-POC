@@ -112,10 +112,9 @@ export default function Dashboard() {
     loadData();
   }, []);
 
-  const isNewStudent = submissions.length === 0;
-  const completedCount = submissions.filter(s => s.status === 'completed').length;
-  const passedFirstTry = submissions.filter(s => s.status === 'completed' && s.score && s.score >= 70).length; // simple approximation
-  const accuracy = isNewStudent ? '--' : `${Math.round((passedFirstTry / Math.max(1, submissions.length)) * 100)}%`;
+  const isNewStudent = (stats.totalSubmissions || 0) === 0;
+  const completedCount = stats.successfulSubmissions || 0;
+  const accuracy = isNewStudent ? '--' : `${Math.round((completedCount / Math.max(1, stats.totalSubmissions || 1)) * 100)}%`;
   
   // Find "Pick up where you left off" problem for returning students
   const lastSubmission = submissions[0];

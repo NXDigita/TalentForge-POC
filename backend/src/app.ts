@@ -21,6 +21,7 @@ import employerRoutes from './routes/employers';
 import paymentsRoutes from './routes/payments';
 import lmsRoutes from './routes/lms';
 import { publicApiRateLimiter } from './middleware/rateLimiter';
+import { AIAdapterFactory } from './services/ai/aiAdapterFactory';
 
 // Sentry Observability Setup
 if (process.env.SENTRY_DSN) {
@@ -94,7 +95,15 @@ app.use('/internal',     internalRoutes);   // worker-only internal endpoints
 // Serve uploaded files (resumes, etc.) as static assets
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-app.get('/health', (req, res) => res.json({ status: 'ok' }));
+app.get('/health', (req, res) => {
+  let aiProvider = 'Unknown';
+  try {
+    aiProvider = AIAdapterFactory.getAdapter().getProviderName();
+  } catch (e) {
+    aiProvider = 'Error loading AI';
+  }
+  res.json({ status: 'ok', aiProvider });
+});
 
 // ─── HTTP + Socket.io server ─────────────────────────────────────────────────
 const server = http.createServer(app);

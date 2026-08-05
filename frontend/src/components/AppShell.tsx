@@ -40,8 +40,9 @@ export default function AppShell() {
   const [unreadCount, setUnreadCount] = useState<number>(1);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+  const [aiProvider, setAiProvider] = useState<{ status: string; name: string }>({ status: 'loading', name: '...' });
 
-  const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
+  const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:5001/api';
 
   useEffect(() => {
     async function fetchNotifications() {
@@ -60,6 +61,19 @@ export default function AppShell() {
     fetchNotifications();
     // Poll every 60s instead of 10s — notifications are not real-time critical
     const interval = setInterval(fetchNotifications, 60_000);
+
+    // Fetch AI Status
+    async function fetchAiStatus() {
+      try {
+        const { getSystemHealth } = await import('../services/api');
+        const health = await getSystemHealth();
+        setAiProvider({ status: health.status, name: health.aiProvider });
+      } catch {
+        setAiProvider({ status: 'error', name: 'Offline' });
+      }
+    }
+    fetchAiStatus();
+
     // Also fetch immediately when the user switches back to the tab
     document.addEventListener('visibilitychange', fetchNotifications);
     return () => {
@@ -240,8 +254,26 @@ export default function AppShell() {
           })}
         </nav>
 
+        {/* AI Status Indicator */}
+        <div className="px-6 py-2 border-t border-slate-100 dark:border-slate-800 midnight:border-line flex items-center gap-2">
+          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-indigo-50 dark:bg-indigo-900/30 text-indigo-500">
+            <Sparkles className="h-3.5 w-3.5" />
+          </div>
+          <div className="flex-1 flex items-center justify-between min-w-0">
+            <span className="text-xs font-medium text-slate-600 dark:text-slate-400 truncate">
+              {aiProvider.name}
+            </span>
+            <div className="flex items-center gap-1.5">
+              <div className={`h-1.5 w-1.5 rounded-full ${aiProvider.status === 'ok' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : aiProvider.status === 'loading' ? 'bg-amber-400 animate-pulse' : 'bg-red-500'}`} />
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 uppercase">
+                {aiProvider.status === 'ok' ? 'READY' : aiProvider.status === 'loading' ? 'WAIT' : 'ERR'}
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* Sidebar Footer / User & Role Widget */}
-        <div className="border-t border-slate-100 dark:border-slate-800 p-4 space-y-2">
+        <div className="border-t border-slate-100 dark:border-slate-800 midnight:border-line p-4 space-y-2">
           <div className="flex items-center gap-3 rounded-xl p-2 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
             <div className="h-9 w-9 rounded-full bg-purple-600/20 text-purple-400 font-bold flex items-center justify-center text-sm border border-purple-500/30">
               {user?.name?.[0]?.toUpperCase() || 'U'}

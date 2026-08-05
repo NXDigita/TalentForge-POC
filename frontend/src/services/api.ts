@@ -449,10 +449,20 @@ export async function toggleAnonymize(isAnonymized: boolean): Promise<any> {
     const response = await api.patch('/students/anonymize', { isAnonymized });
     return response.data;
   } catch (err) {
-    console.warn('Anonymize API call returned error, using dev fallback:', err);
-    return { ok: true, user: { isAnonymized } };
+    console.warn('Backend unavailable, mock anonymize success');
+    return { success: true };
   }
 }
 
-
-
+export async function getSystemHealth(): Promise<{ status: string; aiProvider: string }> {
+  try {
+    // /health is unauthenticated on the root or api level, but based on app.ts it's on root `/health`
+    // However, our axios instance defaults to /api, so let's use a full URL or override it.
+    // We will just hit `/health` by taking the VITE_API_URL and removing `/api`
+    const baseURL = (import.meta.env.VITE_API_URL || 'http://localhost:5001/api').replace('/api', '');
+    const res = await fetch(`${baseURL}/health`);
+    return await res.json();
+  } catch (e) {
+    return { status: 'error', aiProvider: 'Offline' };
+  }
+}

@@ -250,6 +250,46 @@ function StudentCandidateProfileView() {
     { id: 'preferences', label: 'Preferences', icon: '⚙', dot: '' },
   ];
 
+  // Dynamic completion logic for the "Complete your proof profile" widget
+  const isPersonalComplete = !!formData.name && !!formData.mobileNumber;
+  const isAcademicComplete = formData.education.length > 0 && !!formData.education[0].college;
+  const isWalletComplete = !!(user as any)?.walletAddress;
+  const isResumeComplete = !!formData.resumeUrl;
+  const isSkillsComplete = formData.skills.length > 0;
+  const isAchievementsComplete = badges && badges.length > 0;
+  const isSocialComplete = !!formData.githubUsername || !!formData.linkedinUrl || formData.links.length > 0;
+
+  const renderChecklistItem = (id: string, label: string, isComplete: boolean, extra?: React.ReactNode) => {
+    const isCurrent = activeTab === id;
+    
+    if (isComplete) {
+      return (
+        <li key={id} className="flex items-center gap-2.5 text-tx">
+          <span className="w-5 h-5 rounded-md bg-green/15 text-green flex items-center justify-center text-[11px]">✓</span> {label} 
+          {isCurrent && <span className="ml-auto text-[11px] text-tx3">you're here</span>}
+          {!isCurrent && extra && <span className="ml-auto text-[11px] text-tx3">{extra}</span>}
+        </li>
+      );
+    }
+    
+    if (isCurrent) {
+      return (
+        <li key={id} className="flex items-center gap-2.5 text-indigo2 font-medium">
+          <span className="w-5 h-5 rounded-md bg-indigo/20 flex items-center justify-center text-[11px]">→</span> {label} 
+          <span className="ml-auto text-[11px] text-tx3">you're here</span>
+        </li>
+      );
+    }
+
+    return (
+      <li key={id} className="flex items-center gap-2.5 text-tx3">
+        <span className="w-5 h-5 rounded-md bg-panel3 border border-line flex items-center justify-center text-[11px]">○</span> {label}
+        {extra && <span className="ml-auto text-[11px] text-tx3">{extra}</span>}
+      </li>
+    );
+  };
+
+
   return (
     <div className="font-sans text-tx bg-bg antialiased min-h-screen pb-16 pt-6 relative">
       {/* Top Navbar Area */}
@@ -768,13 +808,13 @@ function StudentCandidateProfileView() {
               <div className="text-[13.5px] font-semibold mb-1 text-white">Complete your proof profile</div>
               <div className="text-[12px] text-tx3 mb-4">Recruiters filter by verified sections first.</div>
               <ul className="space-y-2.5 text-[13px]">
-                <li className="flex items-center gap-2.5 text-tx"><span className="w-5 h-5 rounded-md bg-green/15 text-green flex items-center justify-center text-[11px]">✓</span> Personal</li>
-                <li className="flex items-center gap-2.5 text-tx"><span className="w-5 h-5 rounded-md bg-green/15 text-green flex items-center justify-center text-[11px]">✓</span> Academic</li>
-                <li className="flex items-center gap-2.5 text-tx"><span className="w-5 h-5 rounded-md bg-green/15 text-green flex items-center justify-center text-[11px]">✓</span> Blockchain wallet</li>
-                <li className="flex items-center gap-2.5 text-indigo2 font-medium"><span className="w-5 h-5 rounded-md bg-indigo/20 flex items-center justify-center text-[11px]">→</span> Resume <span className="ml-auto text-[11px] text-tx3">you're here</span></li>
-                <li className="flex items-center gap-2.5 text-tx3"><span className="w-5 h-5 rounded-md bg-panel3 border border-line flex items-center justify-center text-[11px]">○</span> Skills <span className="ml-auto text-[11px]">2 / 8 verified</span></li>
-                <li className="flex items-center gap-2.5 text-tx3"><span className="w-5 h-5 rounded-md bg-panel3 border border-line flex items-center justify-center text-[11px]">—</span> Achievements</li>
-                <li className="flex items-center gap-2.5 text-tx3"><span className="w-5 h-5 rounded-md bg-panel3 border border-line flex items-center justify-center text-[11px]">—</span> Social links</li>
+                {renderChecklistItem('personal', 'Personal', isPersonalComplete)}
+                {renderChecklistItem('academic', 'Academic', isAcademicComplete)}
+                {renderChecklistItem('blockchain', 'Blockchain wallet', isWalletComplete)}
+                {renderChecklistItem('resume', 'Resume', isResumeComplete)}
+                {renderChecklistItem('skills', 'Skills', isSkillsComplete, isSkillsComplete ? `${verifiedSlugs.length} / ${formData.skills.length} verified` : undefined)}
+                {renderChecklistItem('achievements', 'Achievements', isAchievementsComplete)}
+                {renderChecklistItem('social', 'Social links', isSocialComplete)}
               </ul>
             </section>
 
