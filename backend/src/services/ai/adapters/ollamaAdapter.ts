@@ -24,7 +24,7 @@ export class OllamaAdapter implements AIAdapter {
         options: {
           temperature: options?.temperature ?? 0.7,
         },
-      }, { timeout: 30000 });
+      }, { timeout: 120000 });
 
       return response.data?.response || '';
     } catch (err: any) {
@@ -44,7 +44,7 @@ export class OllamaAdapter implements AIAdapter {
         options: {
           temperature: options?.temperature ?? 0.2,
         },
-      }, { timeout: 30000 });
+      }, { timeout: 120000 });
 
       const rawText = response.data?.response || '{}';
       const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -77,7 +77,7 @@ export class OllamaAdapter implements AIAdapter {
           messages: formattedMessages,
           stream: true,
         },
-        { responseType: 'stream', timeout: 45000 }
+        { responseType: 'stream', timeout: 120000 }
       );
 
       let buffer = '';

@@ -130,14 +130,8 @@ export default function ProblemDetail() {
       setShowCelebrationModal(false);
       resetGradingState();
 
-      // 1. Get Presigned S3 Upload URL
-      const { uploadUrl, s3Key } = await getPresignedUrl(problem.id, language);
-
-      // 2. Upload code directly to MinIO
-      await uploadCodeToMinio(uploadUrl, code);
-
-      // 3. Submit solution metadata to backend API
-      const { submissionId: subId } = await submitSolution(problem.id, s3Key, language);
+      // Submit solution directly to backend API
+      const { submissionId: subId } = await submitSolution(problem.id, code, language);
 
       setSubmissionId(subId);
     } catch (err: any) {
