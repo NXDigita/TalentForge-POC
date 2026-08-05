@@ -17,14 +17,14 @@ const registerSchema = z.object({
 type RegisterForm = z.infer<typeof registerSchema>;
 
 export default function Register() {
-  const { registerUser } = useAuth();
+  const { registerUser, setSession } = useAuth();
   const navigate = useNavigate();
   const [apiError, setApiError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEmployer, setIsEmployer] = useState(false);
   const [companyName, setCompanyName] = useState('');
 
-  const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
+  const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:5001/api';
 
   const { register, handleSubmit, formState: { errors } } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
@@ -50,8 +50,8 @@ export default function Register() {
         });
         const result = await res.json();
         if (!res.ok) throw new Error(result.error || 'Employer registration failed');
-        if (result.accessToken) {
-          localStorage.setItem('talentforge_token', result.accessToken);
+        if (result.accessToken && result.refreshToken) {
+          await setSession(result.accessToken, result.refreshToken);
         }
         navigate('/discover');
       } else {
