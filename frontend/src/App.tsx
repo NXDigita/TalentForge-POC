@@ -18,6 +18,7 @@ const EmployerDiscover = lazy(() => import('./pages/EmployerDiscover'));
 const EmployerShortlist = lazy(() => import('./pages/EmployerShortlist'));
 const Guide = lazy(() => import('./pages/Guide'));
 const Learning = lazy(() => import('./pages/Learning'));
+const AdminPortal = lazy(() => import('./pages/AdminPortal'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const AuthCallback = lazy(() => import('./pages/AuthCallback'));
 const VerifyBadge = lazy(() => import('./pages/VerifyBadge'));
@@ -71,6 +72,11 @@ function App() {
                 <Route element={<RequireRole allowedRoles={['EMPLOYER']} />}>
                   <Route path="/discover" element={<EmployerDiscover />} />
                   <Route path="/shortlist" element={<EmployerShortlist />} />
+                </Route>
+
+                {/* Admin Routes */}
+                <Route element={<RequireRole allowedRoles={['ADMIN']} />}>
+                  <Route path="/admin" element={<AdminPortal />} />
                 </Route>
 
                 {/* Shared Multi-Role Routes */}

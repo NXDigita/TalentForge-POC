@@ -83,6 +83,77 @@ async function main() {
     },
   });
 
+  console.log('👥 Seeding sample CSE students (5)...');
+  const cseStudents = [
+    { email: 'cse1@college.edu', name: 'Alice Smith', college: 'MIT', degree: 'B.Tech', skills: [{ name: 'React', level: 'Intermediate' }, { name: 'Python', level: 'Advanced' }] },
+    { email: 'cse2@college.edu', name: 'Bob Johnson', college: 'Stanford', degree: 'B.Tech', skills: [{ name: 'Node.js', level: 'Beginner' }] },
+    { email: 'cse3@college.edu', name: 'Charlie Brown', college: 'Berkeley', degree: 'M.Tech', skills: [{ name: 'Java', level: 'Advanced' }, { name: 'Spring Boot', level: 'Intermediate' }] },
+    { email: 'cse4@college.edu', name: 'Diana Prince', college: 'CMU', degree: 'B.Tech', skills: [{ name: 'Go', level: 'Advanced' }] },
+    { email: 'cse5@college.edu', name: 'Evan Wright', college: 'Georgia Tech', degree: 'M.Tech', skills: [{ name: 'C++', level: 'Intermediate' }, { name: 'Rust', level: 'Beginner' }] },
+  ];
+  for (const s of cseStudents) {
+    await prisma.user.upsert({
+      where: { email: s.email },
+      update: { password: hashedPassword, role: 'STUDENT', college: s.college, degree: s.degree, skills: s.skills },
+      create: {
+        email: s.email, password: hashedPassword, name: s.name, domain: 'cse', role: 'STUDENT', tier: 'Explorer', xp: Math.floor(Math.random() * 500), college: s.college, degree: s.degree, skills: s.skills,
+        walletAddress: `0xabc123${Math.random().toString(16).substring(2, 8)}`,
+      },
+    });
+  }
+
+  console.log('👥 Seeding sample ECE students (3)...');
+  const eceStudents = [
+    { email: 'ece1@college.edu', name: 'Fiona Gallagher', college: 'Caltech', degree: 'B.Tech', skills: [{ name: 'Verilog', level: 'Intermediate' }, { name: 'C', level: 'Advanced' }] },
+    { email: 'ece2@college.edu', name: 'George Miller', college: 'Purdue', degree: 'B.Tech', skills: [{ name: 'MATLAB', level: 'Advanced' }] },
+    { email: 'ece3@college.edu', name: 'Hannah Abbott', college: 'UIUC', degree: 'M.Tech', skills: [{ name: 'Embedded C', level: 'Intermediate' }, { name: 'VHDL', level: 'Beginner' }] },
+  ];
+  for (const s of eceStudents) {
+    await prisma.user.upsert({
+      where: { email: s.email },
+      update: { password: hashedPassword, role: 'STUDENT', college: s.college, degree: s.degree, skills: s.skills },
+      create: {
+        email: s.email, password: hashedPassword, name: s.name, domain: 'ece', role: 'STUDENT', tier: 'Explorer', xp: Math.floor(Math.random() * 300), college: s.college, degree: s.degree, skills: s.skills,
+        walletAddress: `0xdef456${Math.random().toString(16).substring(2, 8)}`,
+      },
+    });
+  }
+
+  console.log('🛡️ Seeding sample Reviewers (5)...');
+  const reviewers = [
+    { email: 'rev1@talentforge.in', name: 'Reviewer One', domain: 'cse', tier: 'Expert' },
+    { email: 'rev2@talentforge.in', name: 'Reviewer Two', domain: 'cse', tier: 'Master' },
+    { email: 'rev3@talentforge.in', name: 'Reviewer Three', domain: 'ece', tier: 'Expert' },
+    { email: 'rev4@talentforge.in', name: 'Reviewer Four', domain: 'cse', tier: 'Expert' },
+    { email: 'rev5@talentforge.in', name: 'Reviewer Five', domain: 'ece', tier: 'Master' },
+  ];
+  for (const r of reviewers) {
+    await prisma.user.upsert({
+      where: { email: r.email },
+      update: { password: reviewerPassword, role: 'REVIEWER' },
+      create: {
+        email: r.email, password: reviewerPassword, name: r.name, domain: r.domain, role: 'REVIEWER', tier: r.tier, xp: Math.floor(Math.random() * 2000) + 3000,
+      },
+    });
+  }
+
+  console.log('💼 Seeding sample Employers (3)...');
+  const employers = [
+    { email: 'emp1@google.com', name: 'Recruiter Google', company: 'Google', domain: 'cse' },
+    { email: 'emp2@microsoft.com', name: 'Recruiter Microsoft', company: 'Microsoft', domain: 'cse' },
+    { email: 'emp3@intel.com', name: 'Recruiter Intel', company: 'Intel', domain: 'ece' },
+  ];
+  for (const e of employers) {
+    await prisma.user.upsert({
+      where: { email: e.email },
+      update: { password: employerPassword, role: 'EMPLOYER' },
+      create: {
+        email: e.email, password: employerPassword, name: `${e.name} (${e.company})`, domain: e.domain, role: 'EMPLOYER', tier: 'Enterprise', xp: 5000,
+      },
+    });
+  }
+
+
   console.log('🌱 Seeding 8 comprehensive problems (incl. Flagship Load Balancer)...');
 
   // ─── Problem 1: Two Sum (Easy - Explorer) ──────────────────────────────────
