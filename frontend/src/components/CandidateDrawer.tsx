@@ -43,8 +43,10 @@ export interface CandidateData {
   linkedinUrl?: string;
   resumeUrl?: string;
   skills?: any[];
+  githubScore?: number;
   scoreBreakdown?: {
     profileStrength: number;
+    githubScore: number;
     problemScore: number;
     assessmentScore: number;
   };
@@ -135,7 +137,8 @@ export default function CandidateDrawer({
                 {candidate.scoreBreakdown && (
                   <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-64 p-3 bg-slate-900 text-white text-xs rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-left border border-slate-700">
                     <div className="font-bold mb-2 border-b border-slate-700 pb-1">Score Breakdown Formula</div>
-                    <div className="flex justify-between mb-1"><span>Profile Strength (25%)</span> <span className="font-mono text-emerald-400">{candidate.scoreBreakdown.profileStrength}</span></div>
+                    <div className="flex justify-between mb-1"><span>Profile Strength (15%)</span> <span className="font-mono text-emerald-400">{candidate.scoreBreakdown.profileStrength}</span></div>
+                    <div className="flex justify-between mb-1"><span>GitHub Score (10%)</span> <span className="font-mono text-emerald-400">{candidate.scoreBreakdown.githubScore}</span></div>
                     <div className="flex justify-between mb-1"><span>Problem Score (50%)</span> <span className="font-mono text-emerald-400">{candidate.scoreBreakdown.problemScore}</span></div>
                     <div className="flex justify-between"><span>Assessment (25%)</span> <span className="font-mono text-emerald-400">{candidate.scoreBreakdown.assessmentScore}</span></div>
                   </div>

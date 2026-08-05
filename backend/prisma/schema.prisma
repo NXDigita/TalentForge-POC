@@ -60,6 +60,7 @@ model User {
 
   // Computed aggregate score (updated on submission, assessment save, profile save)
   aggregateScore        Float     @default(0)
+  githubScore           Float     @default(0)
 
   // Challenge tier unlock (payments)
   unlockedTier          String    @default("free")   // free | basic | advanced

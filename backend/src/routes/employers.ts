@@ -114,8 +114,10 @@ router.get('/candidates', async (req, res) => {
           linkedinUrl: u.linkedinUrl,
           resumeUrl: u.resumeUrl,
           skills: u.skills,
+          githubScore: u.githubScore,
           scoreBreakdown: {
             profileStrength,
+            githubScore: u.githubScore || 0,
             problemScore,
             assessmentScore
           }

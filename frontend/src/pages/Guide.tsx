@@ -29,9 +29,9 @@ const FAQS: FAQItem[] = [
       'Before any container is spawned, candidate source code is statically scanned by precheck.ts using regex and AST analysis. Blocked patterns include: Python subprocess/os.system/eval/exec/__import__/open, Node.js child_process/fs/eval/process.exit, Java Runtime.getRuntime/ProcessBuilder/System.exit. If any pattern is detected, execution halts immediately with status BLOCKED — no container is ever launched.',
   },
   {
-    question: 'How is the Composite Score calculated?',
+    question: 'How is the Aggregate Score calculated?',
     answer:
-      'The autograder runs three dimensions: (1) Correctness — code is executed against all public and hidden test cases, (2) Complexity — code is run at input sizes N, 2N, and 4N; growth ratios R1 = T(2N)/T(N) and R2 = T(4N)/T(2N) are fitted to classify O(1), O(N), O(N log N), or O(N²) vs the problem\'s expected complexity, (3) Style — pylint (Python), eslint (JavaScript), or checkstyle (Java) reports are parsed inside the container. Final score = 60% Correctness + 30% Complexity + 10% Style.',
+      'The platform uses a dynamic 4-part weighted formula to calculate a candidate\'s Aggregate Score: (1) Problem Score (50%) — the best autograded submission score based on correctness, complexity, and style. (2) Psychometric Assessment (25%) — the overall score from the 5-trait AI personality test. (3) Profile Strength (15%) — based on the completion of the Talent Profile, resume, and skills. (4) GitHub Score (10%) — an automated calculation based on public repositories, followers, and account age using the GitHub API.',
   },
   {
     question: 'How does the Reviewer Portal work?',
@@ -41,7 +41,7 @@ const FAQS: FAQItem[] = [
   {
     question: 'How does Employer Candidate Discovery work?',
     answer:
-      'Employers access the Discover page with a TanStack Table showing all candidates with verified badges. Filters include: minimum total score slider, badge status toggle, language filter, and domain. Clicking a candidate opens a drawer showing their score breakdown, psychometric radar chart, and best code sample (only if profilePublic=true). The Shortlist button saves the candidate for later review.',
+      'Employers access the Discover page with a TanStack Table showing all candidates. Filters include: minimum score slider, badge status, language, and domain. Clicking a candidate opens the Inspect Drawer showing a Comprehensive Profile (education, external links, resume, claimed skills), the 4-part Aggregate Score Breakdown tooltip, a Psychometric Radar chart, and the best code sample. The Shortlist button saves the candidate for later review.',
   },
   {
     question: 'What does the badge lifecycle look like?',

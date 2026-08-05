@@ -141,8 +141,8 @@ TalentForge implements strict RBAC. Each role sees only its authorized screens a
 - **Real-time Results**: Socket.io live `grading:complete` event → Results panel with score breakdown.
 - **Submission Cooldown**: 60-second resubmit lockout with live countdown chip.
 - **Leaderboard**: Paginated podium (Gold/Silver/Bronze) with 7-day score trends.
-- **Psychometric Assessment**: 20-question behavioral quiz + domain knowledge test with radar chart.
-- **Notification Bell**: Unread count badge, review result notifications from Reviewer portal.
+- **Psychometric Assessment**: 20-question behavioral quiz + domain knowledge test with a 5-trait radar chart.
+- **GitHub Integration**: Automated fetching of public repos, followers, and account age to calculate a GitHub Score.
 - **AI Talent Profile**: A comprehensive 9-tab profile featuring an AI-extracted Skills Radar Chart (powered by pgvector), strengths chips, GitHub/Social links, and a public/private recruiter visibility toggle.
 
 ### 🔍 Reviewer Workflow
@@ -152,8 +152,8 @@ TalentForge implements strict RBAC. Each role sees only its authorized screens a
 - **Outcomes**: APPROVE → `EXPERT_VERIFIED`; REJECT → badge revoked + student notification.
 
 ### 🏢 Employer Workflow
-- **Candidate Discovery** (`/discover`): TanStack Table with sortable score, badge toggle, min-score slider, language filter.
-- **Candidate Drawer**: Profile scores, psychometric radar, best code sample, Shortlist button.
+- **Candidate Discovery** (`/discover`): TanStack Table with sortable aggregate score, badge toggle, min-score slider, language filter.
+- **Candidate Drawer**: Comprehensive Profile (education, social links, verified skills), 4-part Aggregate Score Breakdown Tooltip (Profile 15% + GitHub 10% + Code 50% + Psychometric 25%), Psychometric Radar, best code sample, Shortlist button.
 - **Shortlist Page** (`/shortlist`): Saved candidates with remove action.
 - **Profile Visibility**: Code samples only shown if `profilePublic=true`.
 

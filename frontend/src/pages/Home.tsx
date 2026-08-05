@@ -109,9 +109,9 @@ export default function Home() {
             <div className="h-12 w-12 rounded-2xl bg-indigo-600/20 text-indigo-400 font-black flex items-center justify-center text-lg border border-indigo-500/30">
               02
             </div>
-            <h3 className="text-lg font-bold text-white">Verified Code Execution</h3>
+            <h3 className="text-lg font-bold text-white">AI Psychometrics & Code Execution</h3>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Solve engineering challenges in Monaco Editor. Get help from your AI Copilot when stuck, and run against hidden test cases.
+              Solve engineering challenges in Monaco Editor with an AI Copilot. Take the psychological assessment to build your 5-trait radar map.
             </p>
           </div>
 
@@ -120,9 +120,9 @@ export default function Home() {
             <div className="h-12 w-12 rounded-2xl bg-emerald-600/20 text-emerald-400 font-black flex items-center justify-center text-lg border border-emerald-500/30">
               03
             </div>
-            <h3 className="text-lg font-bold text-white">Earn Badges & Get Discovered</h3>
+            <h3 className="text-lg font-bold text-white">Dynamic 4-Part Aggregate Scoring</h3>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Build an AI-Assessed Talent Profile, unlock cryptographically verified PDF/NFT badges, and get shortlisted by top employers.
+              Get assessed fairly. Your total score is a blend of your Code Submissions, Psychometric Profile, Platform Profile, and an automated GitHub integration!
             </p>
           </div>
         </div>

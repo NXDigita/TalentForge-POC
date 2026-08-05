@@ -7,6 +7,7 @@ import { validate } from '../middleware/validate';
 import { requireAuth, AuthenticatedRequest } from '../middleware/authMiddleware';
 import { gradingQueue } from '../queues/grading';
 import { getAIAdapter } from '../services/ai/aiAdapterFactory';
+import { calculateGithubScore } from '../services/githubScoreService';
 import { userNotifications } from './reviewer';
 import { computeAndSaveAggregateScore } from '../services/aggregateScore';
 
@@ -85,10 +86,16 @@ router.put('/profile', requireAuth, validate(profileUpdateSchema), async (req: A
     if (mobileNumber !== undefined) dataToUpdate.mobileNumber = mobileNumber;
     if (freezeProfile !== undefined) dataToUpdate.profileFrozen = freezeProfile;
     if (profilePublic !== undefined) dataToUpdate.profilePublic = profilePublic;
-    if (githubUsername !== undefined) dataToUpdate.githubUsername = githubUsername;
     if (college !== undefined) dataToUpdate.college = college;
     if (degree !== undefined) dataToUpdate.degree = degree;
     if (graduationYear !== undefined) dataToUpdate.graduationYear = graduationYear;
+    
+    if (githubUsername !== undefined) {
+      dataToUpdate.githubUsername = githubUsername;
+      if (githubUsername && githubUsername !== existingUser.githubUsername) {
+        dataToUpdate.githubScore = await calculateGithubScore(githubUsername);
+      }
+    }
 
     const updatedUser = await prisma.user.update({
       where: { id: userId },
