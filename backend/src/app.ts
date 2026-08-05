@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import path from 'path';
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
@@ -89,6 +90,10 @@ app.use('/api/employers', publicApiRateLimiter, employerRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/api/lms',      lmsRoutes);
 app.use('/internal',     internalRoutes);   // worker-only internal endpoints
+
+// Serve uploaded files (resumes, etc.) as static assets
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
 // ─── HTTP + Socket.io server ─────────────────────────────────────────────────

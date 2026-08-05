@@ -36,6 +36,18 @@ export interface CandidateData {
   bestCodeSample: string;
   submittedAt?: string;
   isShortlisted?: boolean;
+  college?: string;
+  degree?: string;
+  graduationYear?: string;
+  githubUsername?: string;
+  linkedinUrl?: string;
+  resumeUrl?: string;
+  skills?: any[];
+  scoreBreakdown?: {
+    profileStrength: number;
+    problemScore: number;
+    assessmentScore: number;
+  };
 }
 
 interface CandidateDrawerProps {
@@ -116,9 +128,18 @@ export default function CandidateDrawer({
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {/* Top Stat Cards */}
             <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-4 text-center">
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-4 text-center group relative cursor-help">
                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Aggregate Score</span>
                 <span className="text-2xl font-black text-emerald-400 font-mono">{candidate.score}/100</span>
+                
+                {candidate.scoreBreakdown && (
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-64 p-3 bg-slate-900 text-white text-xs rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-left border border-slate-700">
+                    <div className="font-bold mb-2 border-b border-slate-700 pb-1">Score Breakdown Formula</div>
+                    <div className="flex justify-between mb-1"><span>Profile Strength (25%)</span> <span className="font-mono text-emerald-400">{candidate.scoreBreakdown.profileStrength}</span></div>
+                    <div className="flex justify-between mb-1"><span>Problem Score (50%)</span> <span className="font-mono text-emerald-400">{candidate.scoreBreakdown.problemScore}</span></div>
+                    <div className="flex justify-between"><span>Assessment (25%)</span> <span className="font-mono text-emerald-400">{candidate.scoreBreakdown.assessmentScore}</span></div>
+                  </div>
+                )}
               </div>
 
               <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-4 text-center">
@@ -131,6 +152,54 @@ export default function CandidateDrawer({
                 <span className={`text-xs font-extrabold uppercase mt-1.5 inline-block ${candidate.profilePublic ? 'text-emerald-400' : 'text-amber-400'}`}>
                   {candidate.profilePublic ? 'Public Code' : 'Private'}
                 </span>
+              </div>
+            </div>
+
+            {/* Comprehensive Candidate Details */}
+            <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-6 space-y-5 shadow-sm">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+                <User className="h-4 w-4 text-indigo-400" /> Comprehensive Profile
+              </h3>
+              
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Education</span>
+                  <div className="text-slate-700 dark:text-slate-300">
+                    {candidate.college ? (
+                      <>
+                        <div className="font-semibold">{candidate.degree}</div>
+                        <div>{candidate.college} • Class of {candidate.graduationYear}</div>
+                      </>
+                    ) : (
+                      <span className="italic text-slate-500">Not provided</span>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <span className="block text-[10px] font-bold text-slate-400 uppercase mb-1">External Links</span>
+                  <div className="space-y-1">
+                    {candidate.githubUsername && <a href={`https://github.com/${candidate.githubUsername}`} target="_blank" rel="noreferrer" className="block text-indigo-500 hover:underline">GitHub Profile</a>}
+                    {candidate.linkedinUrl && <a href={candidate.linkedinUrl} target="_blank" rel="noreferrer" className="block text-indigo-500 hover:underline">LinkedIn</a>}
+                    {candidate.resumeUrl && <a href={candidate.resumeUrl} target="_blank" rel="noreferrer" className="block text-indigo-500 hover:underline">View Resume</a>}
+                    {!candidate.githubUsername && !candidate.linkedinUrl && !candidate.resumeUrl && <span className="italic text-slate-500">No links provided</span>}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <span className="block text-[10px] font-bold text-slate-400 uppercase mb-2">Verified & Claimed Skills</span>
+                <div className="flex flex-wrap gap-2">
+                  {candidate.skills && candidate.skills.length > 0 ? (
+                    candidate.skills.map((skill: any, idx: number) => (
+                      <span key={idx} className="px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-xs font-medium border border-slate-200 dark:border-slate-700">
+                        {skill.name} <span className="text-slate-400 ml-1">({skill.level})</span>
+                      </span>
+                    ))
+                  ) : (
+                    <span className="italic text-slate-500 text-sm">No skills added</span>
+                  )}
+                </div>
               </div>
             </div>
 

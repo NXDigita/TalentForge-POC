@@ -163,6 +163,10 @@ export default function Assessment() {
   const [isCompleted, setIsCompleted] = useState(false);
   const [savedNotice, setSavedNotice] = useState(false);
 
+  // Dynamic questions loaded from AI (or static fallback)
+  const [questions, setQuestions] = useState<Question[]>(QUESTIONS);
+  const [questionsSource, setQuestionsSource] = useState<'loading' | 'ai' | 'static'>('loading');
+
   // Dynamic AI Model Adapter State
   const [aiInterpretation, setAiInterpretation] = useState<{
     cognitiveAnalysis?: string;
@@ -175,6 +179,22 @@ export default function Assessment() {
   const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // 0. Load AI-generated questions on mount (fallback to static QUESTIONS)
+  useEffect(() => {
+    api.get('/students/assessment/questions')
+      .then(res => {
+        if (res.data?.questions && Array.isArray(res.data.questions)) {
+          setQuestions(res.data.questions);
+          setQuestionsSource(res.data.source === 'ai' ? 'ai' : 'static');
+        } else {
+          setQuestionsSource('static');
+        }
+      })
+      .catch(() => {
+        setQuestionsSource('static');
+      });
+  }, []);
 
   // 1. Restore answers & timer from sessionStorage on mount
   useEffect(() => {
@@ -241,11 +261,11 @@ export default function Assessment() {
   };
 
   // Submit / Finish Assessment
-  const handleSubmitAssessment = () => {
+  const handleSubmitAssessment = async () => {
     const answeredCount = Object.keys(answers).length;
-    if (answeredCount < QUESTIONS.length) {
+    if (answeredCount < questions.length) {
       const confirmSubmit = window.confirm(
-        `You have answered ${answeredCount} of ${QUESTIONS.length} questions. Do you want to submit anyway?`
+        `You have answered ${answeredCount} of ${questions.length} questions. Do you want to submit anyway?`
       );
       if (!confirmSubmit) return;
     }
@@ -253,6 +273,26 @@ export default function Assessment() {
     setIsCompleted(true);
     sessionStorage.setItem('talentforge_assessment_done', 'true');
     toast.success('Assessment completed! Psychometric radar report generated.');
+
+    // Auto-save to DB using trait short keys
+    try {
+      const scoresMap: Record<string, number> = {};
+      questions.forEach(q => {
+        if (!scoresMap[q.trait]) scoresMap[q.trait] = 0;
+        const answer = answers[q.id];
+        if (answer !== undefined) {
+          if (q.type === 'likert') {
+            scoresMap[q.trait] = Math.max(scoresMap[q.trait], Math.round((answer / 5) * 100));
+          } else if (q.type === 'mcq') {
+            const correct = q.options?.find(o => o.isCorrect);
+            scoresMap[q.trait] = Math.max(scoresMap[q.trait], correct?.value === answer ? 100 : 0);
+          }
+        }
+      });
+      await api.post('/students/assessment/save', { scores: scoresMap });
+    } catch (err) {
+      console.warn('Auto-save assessment failed (will retry via Save Proof button):', err);
+    }
   };
 
   // Reset Assessment
@@ -274,37 +314,17 @@ export default function Assessment() {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const activeQuestion = QUESTIONS[currentIdx];
+  const activeQuestion = questions[currentIdx];
   const answeredCount = Object.keys(answers).length;
-  const progressPercent = Math.round((answeredCount / QUESTIONS.length) * 100);
+  const progressPercent = Math.round((answeredCount / questions.length) * 100);
 
-  // Calculate 5-Trait Scores for RadarChart
+  // Calculate 5-Trait Scores for RadarChart — use trait short keys
   const traitScores: TraitScore[] = [
-    {
-      trait: 'Logical Reasoning',
-      value: calculateTraitScore('logical', answers),
-      fullMark: 100,
-    },
-    {
-      trait: 'Attention to Detail',
-      value: calculateTraitScore('detail', answers),
-      fullMark: 100,
-    },
-    {
-      trait: 'Persistence',
-      value: calculateTraitScore('persistence', answers),
-      fullMark: 100,
-    },
-    {
-      trait: 'Learning Speed',
-      value: calculateTraitScore('learning', answers),
-      fullMark: 100,
-    },
-    {
-      trait: 'System Architecture',
-      value: calculateTraitScore('architecture', answers),
-      fullMark: 100,
-    },
+    { trait: 'Logical Reasoning',    value: calculateTraitScore('logical', answers, questions),      fullMark: 100 },
+    { trait: 'Attention to Detail',  value: calculateTraitScore('detail', answers, questions),        fullMark: 100 },
+    { trait: 'Persistence',          value: calculateTraitScore('persistence', answers, questions),   fullMark: 100 },
+    { trait: 'Learning Speed',       value: calculateTraitScore('learning', answers, questions),      fullMark: 100 },
+    { trait: 'System Architecture',  value: calculateTraitScore('architecture', answers, questions),  fullMark: 100 },
   ];
 
   const overallAvg = Math.round(
@@ -668,8 +688,8 @@ export default function Assessment() {
 }
 
 /** Helper: Calculate score for a trait (0-100) based on Likert & MCQ responses */
-function calculateTraitScore(traitKey: string, answers: Record<number, any>): number {
-  const traitQuestions = QUESTIONS.filter((q) => q.trait === traitKey);
+function calculateTraitScore(traitKey: string, answers: Record<number, any>, questions: Question[]): number {
+  const traitQuestions = questions.filter((q) => q.trait === traitKey);
   let totalPoints = 0;
   let maxPoints = 0;
 

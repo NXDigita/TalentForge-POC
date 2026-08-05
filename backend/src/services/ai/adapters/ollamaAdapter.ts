@@ -1,16 +1,13 @@
 import axios from 'axios';
 import { AIAdapter, AIMessage, AIRequestOptions } from '../aiAdapter.interface';
-import { MockAdapter } from './mockAdapter';
 
 export class OllamaAdapter implements AIAdapter {
   private baseUrl: string;
   private model: string;
-  private fallbackMock: MockAdapter;
 
   constructor() {
     this.baseUrl = process.env.OLLAMA_HOST || 'http://localhost:11434';
     this.model = process.env.OLLAMA_MODEL || 'llama3';
-    this.fallbackMock = new MockAdapter();
   }
 
   getProviderName(): string {
@@ -31,8 +28,8 @@ export class OllamaAdapter implements AIAdapter {
 
       return response.data?.response || '';
     } catch (err: any) {
-      console.warn(`[OllamaAdapter] Local Ollama (${this.baseUrl}) unavailable: ${err.message}. Falling back to MockAdapter.`);
-      return this.fallbackMock.generateText(prompt, options);
+      console.error(`[OllamaAdapter] Local Ollama (${this.baseUrl}) unavailable or failed: ${err.message}`);
+      throw new Error(`Ollama generation failed: ${err.message}`);
     }
   }
 
@@ -53,8 +50,8 @@ export class OllamaAdapter implements AIAdapter {
       const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
       return JSON.parse(cleanJson) as T;
     } catch (err: any) {
-      console.warn(`[OllamaAdapter] JSON generation failed via Ollama: ${err.message}. Falling back to MockAdapter.`);
-      return this.fallbackMock.generateJSON<T>(prompt, schema, options);
+      console.error(`[OllamaAdapter] JSON generation failed via Ollama: ${err.message}`);
+      throw new Error(`Ollama JSON generation failed: ${err.message}`);
     }
   }
 
@@ -103,12 +100,12 @@ export class OllamaAdapter implements AIAdapter {
         }
       }
     } catch (err: any) {
-      console.warn(`[OllamaAdapter] Streaming failed via Ollama: ${err.message}. Falling back to MockAdapter.`);
-      yield* this.fallbackMock.streamText(messages, context, options);
+      console.error(`[OllamaAdapter] Streaming failed via Ollama: ${err.message}`);
+      throw new Error(`Ollama streaming failed: ${err.message}`);
     }
   }
 
   async generateEmbedding(text: string): Promise<number[]> {
-    return this.fallbackMock.generateEmbedding(text);
+    throw new Error('OllamaAdapter does not support embeddings yet.');
   }
 }

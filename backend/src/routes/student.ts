@@ -1,12 +1,14 @@
-import { Router } from 'express';
+import fs from 'fs';
+import path from 'path';
+import express, { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { validate } from '../middleware/validate';
 import { requireAuth, AuthenticatedRequest } from '../middleware/authMiddleware';
-import { getUploadUrl } from '../services/s3';
 import { gradingQueue } from '../queues/grading';
 import { getAIAdapter } from '../services/ai/aiAdapterFactory';
 import { userNotifications } from './reviewer';
+import { computeAndSaveAggregateScore } from '../services/aggregateScore';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -22,8 +24,20 @@ router.get('/profile', requireAuth, async (req: AuthenticatedRequest, res) => {
       select: {
         id: true, name: true, email: true,
         domain: true, tier: true, xp: true,
-        badges: { select: { id: true, title: true, mintedAt: true } },
+        mobileNumber: true, githubUsername: true,
+        linkedinUrl: true, resumeUrl: true,
+        profilePublic: true, profileFrozen: true,
+        skills: true, certifications: true, links: true,
+        aggregateScore: true,
+        college: true, degree: true, graduationYear: true,
+        badges: { select: { id: true, title: true, mintedAt: true, score: true, problemSlug: true } },
         psychProfile: true,
+        submissions: {
+          where: { status: 'completed' },
+          select: { id: true, score: true, problem: { select: { title: true, slug: true, tier: true } } },
+          orderBy: { score: 'desc' },
+          take: 10,
+        },
       },
     });
 
@@ -44,6 +58,9 @@ const profileUpdateSchema = z.object({
     freezeProfile: z.boolean().optional(),
     profilePublic: z.boolean().optional(),
     githubUsername: z.string().optional(),
+    college: z.string().optional(),
+    degree: z.string().optional(),
+    graduationYear: z.string().optional(),
   }),
 });
 
@@ -55,18 +72,23 @@ router.put('/profile', requireAuth, validate(profileUpdateSchema), async (req: A
     const existingUser = await prisma.user.findUnique({ where: { id: userId } });
     if (!existingUser) return res.status(404).json({ error: 'User not found' });
 
-    const { name, mobileNumber, freezeProfile, profilePublic, githubUsername } = req.body;
+    const { name, mobileNumber, freezeProfile, profilePublic, githubUsername, college, degree, graduationYear } = req.body;
+    const isNameChanged = name !== undefined && name !== existingUser.name;
+    const isMobileChanged = mobileNumber !== undefined && mobileNumber !== existingUser.mobileNumber;
     
-    if (existingUser.profileFrozen && (name !== undefined || mobileNumber !== undefined)) {
+    if (existingUser.profileFrozen && (isNameChanged || isMobileChanged)) {
       return res.status(403).json({ error: 'Personal details are frozen and cannot be updated.' });
     }
 
     const dataToUpdate: any = {};
     if (name !== undefined) dataToUpdate.name = name;
     if (mobileNumber !== undefined) dataToUpdate.mobileNumber = mobileNumber;
-    if (freezeProfile) dataToUpdate.profileFrozen = true;
+    if (freezeProfile !== undefined) dataToUpdate.profileFrozen = freezeProfile;
     if (profilePublic !== undefined) dataToUpdate.profilePublic = profilePublic;
     if (githubUsername !== undefined) dataToUpdate.githubUsername = githubUsername;
+    if (college !== undefined) dataToUpdate.college = college;
+    if (degree !== undefined) dataToUpdate.degree = degree;
+    if (graduationYear !== undefined) dataToUpdate.graduationYear = graduationYear;
 
     const updatedUser = await prisma.user.update({
       where: { id: userId },
@@ -87,13 +109,13 @@ router.put('/profile', requireAuth, validate(profileUpdateSchema), async (req: A
 });
 
 // ─── PUT /api/students/profile/s2 ────────────────────────────────────────────
-// Updates extended Profile S2 fields (skills, certifications, links)
+// Updates extended Profile S2 fields (skills, certifications, links, linkedin)
 const profileS2Schema = z.object({
   body: z.object({
     skills: z.array(z.any()).optional(),
     certifications: z.array(z.any()).optional(),
     links: z.array(z.any()).optional(),
-    resumeS3Key: z.string().optional(),
+    linkedinUrl: z.string().url().optional().or(z.literal('')),
   }),
 });
 
@@ -102,21 +124,24 @@ router.put('/profile/s2', requireAuth, validate(profileS2Schema), async (req: Au
     const userId = req.user?.userId;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { skills, certifications, links, resumeS3Key } = req.body;
+    const { skills, certifications, links, linkedinUrl } = req.body;
     const dataToUpdate: any = {};
     
     if (skills !== undefined) dataToUpdate.skills = skills;
     if (certifications !== undefined) dataToUpdate.certifications = certifications;
     if (links !== undefined) dataToUpdate.links = links;
-    if (resumeS3Key !== undefined) dataToUpdate.resumeS3Key = resumeS3Key;
+    if (linkedinUrl !== undefined) dataToUpdate.linkedinUrl = linkedinUrl || null;
 
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: dataToUpdate,
       select: {
-        id: true, skills: true, certifications: true, links: true, resumeS3Key: true
+        id: true, skills: true, certifications: true, links: true, linkedinUrl: true, resumeUrl: true
       },
     });
+
+    // Recompute aggregate score
+    await computeAndSaveAggregateScore(userId);
 
     return res.json({ ok: true, user: updatedUser });
   } catch (err) {
@@ -125,51 +150,46 @@ router.put('/profile/s2', requireAuth, validate(profileS2Schema), async (req: Au
   }
 });
 
-// ─── GET /api/students/profile/resume-upload-url ───────────────────────────
-router.get('/profile/resume-upload-url', requireAuth, async (req: AuthenticatedRequest, res) => {
+// ─── POST /api/students/profile/upload-resume ──────────────────────────────
+// Accepts resume PDF via raw body, saves to disk, stores URL in DB
+router.post('/profile/upload-resume', requireAuth, express.raw({ type: ['application/pdf', 'application/octet-stream', '*/*'], limit: '5mb' }), async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user?.userId;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const s3Key = `resumes/${userId}/${Date.now()}.pdf`;
-    const uploadUrl = await getUploadUrl(s3Key, 'application/pdf');
-
-    return res.json({ uploadUrl, s3Key });
-  } catch (err) {
-    console.error('Resume upload URL error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// ─── PUT /api/students/profile/local-upload (SHIM FOR S3) ──────────────────
-import fs from 'fs';
-import path from 'path';
-import express from 'express';
-
-router.put('/profile/local-upload', express.raw({ type: '*/*', limit: '10mb' }), async (req, res) => {
-  try {
-    const key = req.query.key as string;
-    if (!key) return res.status(400).json({ error: 'Missing key' });
-    
-    // Create uploads directory if it doesn't exist
-    const uploadsDir = path.join(process.cwd(), 'uploads');
-    const targetDir = path.join(uploadsDir, path.dirname(key));
-    if (!fs.existsSync(targetDir)) {
-      fs.mkdirSync(targetDir, { recursive: true });
+    const buffer: Buffer = req.body;
+    if (!buffer || buffer.length === 0) {
+      return res.status(400).json({ error: 'No file data received' });
     }
-    
-    const filePath = path.join(uploadsDir, key);
-    fs.writeFileSync(filePath, req.body);
-    
-    return res.status(200).send('OK');
+
+    // Save to uploads/resumes/<userId>/resume.pdf
+    const resumeDir = path.join(process.cwd(), 'uploads', 'resumes', userId);
+    if (!fs.existsSync(resumeDir)) {
+      fs.mkdirSync(resumeDir, { recursive: true });
+    }
+    const filePath = path.join(resumeDir, 'resume.pdf');
+    fs.writeFileSync(filePath, buffer);
+
+    const resumeUrl = `/uploads/resumes/${userId}/resume.pdf`;
+
+    // Persist URL to DB
+    await prisma.user.update({
+      where: { id: userId },
+      data: { resumeUrl },
+    });
+
+    // Recompute aggregate score
+    await computeAndSaveAggregateScore(userId);
+
+    return res.json({ ok: true, resumeUrl });
   } catch (err) {
-    console.error('Local upload failed:', err);
-    return res.status(500).json({ error: 'Local upload failed' });
+    console.error('Resume upload failed:', err);
+    return res.status(500).json({ error: 'Resume upload failed' });
   }
 });
+
 
 // ─── POST /api/students/profile/parse-resume ───────────────────────────────
-import { getObjectBuffer } from '../services/s3';
 import pdfParse from 'pdf-parse';
 
 router.post('/profile/parse-resume', requireAuth, async (req: AuthenticatedRequest, res) => {
@@ -177,23 +197,24 @@ router.post('/profile/parse-resume', requireAuth, async (req: AuthenticatedReque
     const userId = req.user?.userId;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { s3Key } = req.body;
-    if (!s3Key) return res.status(400).json({ error: 's3Key is required' });
-
-    // 1. Download PDF from S3
-    let buffer: Buffer;
-    try {
-      buffer = await getObjectBuffer(s3Key);
-    } catch (err) {
-      console.error('Failed to download resume from S3:', err);
-      return res.status(404).json({ error: 'Resume not found in S3' });
+    // Read PDF from local disk (uploaded via /upload-resume)
+    const filePath = path.join(process.cwd(), 'uploads', 'resumes', userId, 'resume.pdf');
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'No resume found. Please upload your resume first.' });
     }
 
-    // 2. Parse PDF text
-    const pdfData = await pdfParse(buffer);
-    const resumeText = pdfData.text;
+    const buffer = fs.readFileSync(filePath);
 
-    // 3. AI Extraction
+    // Parse PDF text
+    let resumeText = '';
+    try {
+      const pdfData = await pdfParse(buffer);
+      resumeText = pdfData.text;
+    } catch (pdfErr) {
+      return res.status(422).json({ error: 'Could not extract text from PDF. Ensure it is not scanned/image-based.' });
+    }
+
+    // AI Extraction
     const adapter = getAIAdapter();
     const prompt = `
       Extract the candidate's skills and education from the following resume text.
@@ -208,10 +229,9 @@ router.post('/profile/parse-resume', requireAuth, async (req: AuthenticatedReque
       }
 
       Resume Text:
-      ${resumeText.substring(0, 4000)} // Limiting length for safety
+      ${resumeText.substring(0, 4000)}
     `;
 
-    // We can define a Zod schema to enforce types with the adapter
     const parseSchema = z.object({
       skills: z.array(z.object({ name: z.string(), level: z.string() })),
       education: z.array(z.object({ college: z.string(), degree: z.string(), graduationYear: z.string() }))
@@ -220,14 +240,14 @@ router.post('/profile/parse-resume', requireAuth, async (req: AuthenticatedReque
     try {
       const extractedData = await adapter.generateJSON(prompt, parseSchema);
       return res.json({ ok: true, data: extractedData });
-    } catch (aiErr) {
+    } catch (aiErr: any) {
       console.error('AI Resume parsing failed:', aiErr);
-      return res.status(500).json({ error: 'AI parsing failed' });
+      return res.status(500).json({ error: aiErr.message || 'AI parsing failed. Please check your AI API key and try again.' });
     }
 
-  } catch (err) {
+  } catch (err: any) {
     console.error('Parse resume error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: err.message || 'Internal server error' });
   }
 });
 
@@ -336,20 +356,79 @@ router.post('/assessment/save', requireAuth, async (req: AuthenticatedRequest, r
 
     const { scores = {} } = req.body;
 
-    const logical = Math.round(scores['Logical Reasoning'] || 0);
-    const detail = Math.round(scores['Attention to Detail'] || 0);
-    const persistence = Math.round(scores['Tenacity / Persistence'] || 0);
-    const learning = Math.round(scores['Learning Agility'] || 0);
+    // Normalize trait keys (frontend sends display names)
+    const logical      = Math.round(scores['Logical Reasoning']      || scores['logical']      || 0);
+    const detail       = Math.round(scores['Attention to Detail']    || scores['detail']       || 0);
+    const persistence  = Math.round(scores['Persistence']            || scores['persistence']  || scores['Tenacity / Persistence'] || 0);
+    const learning     = Math.round(scores['Learning Speed']         || scores['learning']     || scores['Learning Agility'] || 0);
+    const architecture = Math.round(scores['System Architecture']    || scores['architecture'] || 0);
+
+    const overallScore = Math.round((logical + detail + persistence + learning + architecture) / 5);
 
     const profile = await prisma.psychProfile.upsert({
       where: { userId },
-      update: { logical, detail, persistence, learning },
-      create: { userId, logical, detail, persistence, learning },
+      update: { logical, detail, persistence, learning, architecture, overallScore },
+      create: { userId, logical, detail, persistence, learning, architecture, overallScore },
     });
+
+    // Recompute aggregate score
+    await computeAndSaveAggregateScore(userId);
 
     return res.json({ success: true, profile });
   } catch (err) {
     console.error('Assessment save error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── GET /api/students/assessment/questions ──────────────────────────────────
+// Returns AI-generated assessment questions (5 Likert + 5 MCQ) for the student's domain.
+// Falls back to a static default set if AI is unavailable.
+const DEFAULT_QUESTIONS = [
+  { id: 1, type: 'likert', trait: 'logical', traitName: 'Logical Reasoning', category: 'Psychometric Profile', question: 'When approaching a complex problem, I systematically break down edge cases and inputs before writing code.' },
+  { id: 2, type: 'likert', trait: 'detail', traitName: 'Attention to Detail', category: 'Psychometric Profile', question: 'I thoroughly review memory bounds, null checks, and boundary conditions during software development.' },
+  { id: 3, type: 'likert', trait: 'persistence', traitName: 'Persistence & Resilience', category: 'Psychometric Profile', question: 'When facing difficult algorithmic bugs or test failures, I systematically debug without losing momentum.' },
+  { id: 4, type: 'likert', trait: 'learning', traitName: 'Learning Speed & Agility', category: 'Psychometric Profile', question: 'I rapidly absorb new API specifications, design patterns, and architectural frameworks in fast-paced projects.' },
+  { id: 5, type: 'likert', trait: 'architecture', traitName: 'System Architecture', category: 'Psychometric Profile', question: 'I prioritize clean code separation, modular abstractions, and standard formatting over quick hacky fixes.' },
+  { id: 6, type: 'mcq', trait: 'logical', traitName: 'Logical Reasoning', category: 'Data Structures Aptitude', question: 'What is the worst-case time complexity of searching in a Balanced BST?', options: [{ label: 'O(1)', value: 'A' }, { label: 'O(log N)', value: 'B', isCorrect: true }, { label: 'O(N)', value: 'C' }, { label: 'O(N log N)', value: 'D' }] },
+  { id: 7, type: 'mcq', trait: 'detail', traitName: 'Attention to Detail', category: 'Algorithmic Execution', question: 'In a Hash Table with open addressing and linear probing, what sequence is probed on collision at index i?', options: [{ label: '(i + 1) mod M', value: 'A', isCorrect: true }, { label: '(i + k^2) mod M', value: 'B' }, { label: 'Resizes table instantly', value: 'C' }, { label: 'Appends to linked list', value: 'D' }] },
+  { id: 8, type: 'mcq', trait: 'persistence', traitName: 'Persistence & Resilience', category: 'Concurrency & OS', question: "Which is NOT one of Coffman's four necessary conditions for deadlock?", options: [{ label: 'Mutual Exclusion', value: 'A' }, { label: 'Hold and Wait', value: 'B' }, { label: 'Preemption of Resources', value: 'C', isCorrect: true }, { label: 'Circular Wait', value: 'D' }] },
+  { id: 9, type: 'mcq', trait: 'learning', traitName: 'Learning Speed & Agility', category: 'Language Evaluation', question: 'What does [1, 2, 3].map(parseInt) evaluate to in JavaScript?', options: [{ label: '[1, 2, 3]', value: 'A' }, { label: '[1, NaN, NaN]', value: 'B', isCorrect: true }, { label: 'TypeError', value: 'C' }, { label: '[1, 2, 0]', value: 'D' }] },
+  { id: 10, type: 'mcq', trait: 'architecture', traitName: 'System Architecture', category: 'System Design', question: 'Which caching strategy synchronously writes data to both cache and DB?', options: [{ label: 'Write-Through', value: 'A', isCorrect: true }, { label: 'Write-Back', value: 'B' }, { label: 'Cache-Aside', value: 'C' }, { label: 'Refresh-Ahead', value: 'D' }] },
+];
+
+router.get('/assessment/questions', async (req, res) => {
+  try {
+    const domain = (req.query.domain as string) || 'cse';
+    const adapter = getAIAdapter();
+
+    const prompt = `
+      You are an expert TalentForge Assessment Designer for ${domain.toUpperCase()} engineering candidates.
+      Generate exactly 10 assessment questions: 5 Likert-scale (agreement) psychometric questions and 5 timed MCQ technical aptitude questions.
+      Each question must test one of these 5 traits: logical, detail, persistence, learning, architecture.
+
+      Return ONLY valid JSON (no markdown), exactly matching this schema:
+      [
+        { "id": 1, "type": "likert", "trait": "logical", "traitName": "Logical Reasoning", "category": "Psychometric Profile", "question": "..." },
+        { "id": 6, "type": "mcq", "trait": "logical", "traitName": "Logical Reasoning", "category": "Technical Aptitude", "question": "...",
+          "options": [ { "label": "...", "value": "A", "isCorrect": true }, { "label": "...", "value": "B" }, { "label": "...", "value": "C" }, { "label": "...", "value": "D" } ] }
+      ]
+      Questions 1-5 must be Likert (no options field). Questions 6-10 must be MCQ with exactly one isCorrect: true option.
+      Make questions specific, technical, and relevant to ${domain === 'ece' ? 'Electronics & Embedded Systems' : 'Computer Science & Software Engineering'}.
+    `;
+
+    try {
+      const questions = await adapter.generateJSON<any[]>(prompt);
+      if (Array.isArray(questions) && questions.length === 10) {
+        return res.json({ questions, source: 'ai', provider: adapter.getProviderName() });
+      }
+      throw new Error('AI returned invalid question set');
+    } catch (aiErr) {
+      console.warn('[Assessment Questions] AI failed, using static fallback:', (aiErr as Error).message);
+      return res.json({ questions: DEFAULT_QUESTIONS, source: 'static' });
+    }
+  } catch (err) {
+    console.error('Assessment questions error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -838,11 +917,13 @@ router.get(
 );
 
 // ─── POST /api/students/problems/:id/submit ─────────────────────────────────
-// Accepts submission metadata, creates a Submission row, and enqueues a grading job.
+// Accepts raw code, creates a Submission row with code inline, and enqueues a grading job.
 const submitSchema = z.object({
   body: z.object({
-    s3Key:    z.string().min(1, 's3Key is required'),
+    code:     z.string().min(1, 'code is required'),
     language: z.enum(['python', 'javascript', 'java']),
+    // Legacy s3Key still accepted but ignored — code field takes priority
+    s3Key:    z.string().optional(),
   }),
 });
 
@@ -854,28 +935,30 @@ router.post(
     try {
       const userId = req.user?.userId!;
       const problemId  = req.params.id;
-      const { s3Key, language } = req.body;
+      const { code, language } = req.body;
 
       // Verify problem exists
       const problem = await prisma.problem.findUnique({ where: { id: problemId } });
       if (!problem) return res.status(404).json({ error: 'Problem not found' });
 
-      // Create the submission row (status starts as "queued")
+      // Create the submission row — code stored inline
       const submission = await prisma.submission.create({
         data: {
           userId,
           problemId,
-          code:   s3Key,   // stores S3 key; actual code lives in object storage
+          code: 'inline',      // marker: actual code in codeContent
+          codeContent: code,
+          language,
           status: 'queued',
         },
       });
 
-      // Enqueue grading job
+      // Enqueue grading job — pass codeContent so worker doesn't need S3
       await gradingQueue.add('grade' as any, {
         submissionId: submission.id,
         userId,
         problemId,
-        s3Key,
+        codeContent: code,
         language,
       });
 

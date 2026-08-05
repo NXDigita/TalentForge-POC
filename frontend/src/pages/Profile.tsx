@@ -78,21 +78,36 @@ function StudentCandidateProfileView() {
   const [parseStep, setParseStep] = useState('Extracting skills...');
   const [parsedData, setParsedData] = useState<any>(null);
   const [badges, setBadges] = useState<BadgeData[]>([]);
+  const [verifiedSlugs, setVerifiedSlugs] = useState<string[]>([]);
 
   const [formData, setFormData] = useState({
     name: user?.name || '',
     mobileNumber: '',
     githubUsername: '',
+    linkedinUrl: '',
     profilePublic: false,
     freezeProfile: false,
     skills: [] as {name: string, level: string}[],
     education: [] as {college: string, degree: string, graduationYear: string}[],
     links: [] as {label: string, url: string}[],
-    resumeS3Key: '',
+    resumeUrl: '',
+    aggregateScore: 0,
   });
   
   const [saving, setSaving] = useState(false);
+  const [newSkillName, setNewSkillName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Compute profile strength dynamically
+  const profileStrength = Math.round([
+    !!formData.name,
+    !!formData.mobileNumber,
+    !!formData.githubUsername,
+    !!formData.linkedinUrl,
+    !!formData.resumeUrl,
+    formData.skills.length > 0,
+    formData.links.length > 0,
+  ].filter(Boolean).length / 7 * 100);
 
   useEffect(() => {
     api.get('/students/profile').then(res => {
@@ -101,13 +116,20 @@ function StudentCandidateProfileView() {
         name: res.data.name || prev.name,
         mobileNumber: res.data.mobileNumber || '',
         githubUsername: res.data.githubUsername || '',
-        profilePublic: res.data.profilePublic || false,
-        freezeProfile: res.data.profileFrozen || false,
-        skills: res.data.skills || [],
-        education: res.data.education || [],
-        links: res.data.links || [],
-        resumeS3Key: res.data.resumeS3Key || '',
+        linkedinUrl: res.data.linkedinUrl || '',
+        profilePublic: res.data.profilePublic ?? false,
+        freezeProfile: res.data.profileFrozen ?? false,
+        skills: (res.data.skills as any[] | null) || [],
+        education: (res.data.college || res.data.degree) 
+          ? [{ college: res.data.college || '', degree: res.data.degree || '', graduationYear: res.data.graduationYear || '' }] 
+          : [],
+        links: (res.data.links as any[] | null) || [],
+        resumeUrl: res.data.resumeUrl || '',
+        aggregateScore: res.data.aggregateScore || 0,
       }));
+      // Collect problem slugs with completed submissions (for skill verification badges)
+      const completedSlugs = (res.data.submissions || []).map((s: any) => s.problem?.slug).filter(Boolean);
+      setVerifiedSlugs(completedSlugs);
     }).catch(console.error);
 
     getUserBadges().then(setBadges).catch(console.error);
@@ -127,22 +149,30 @@ function StudentCandidateProfileView() {
   };
 
   const processResume = async (file: File) => {
+    if (!file || file.size > 5 * 1024 * 1024) {
+      toast.error('File must be a PDF under 5 MB');
+      return;
+    }
     setResumeState('uploading');
     try {
-      const { data: { uploadUrl, s3Key } } = await api.get('/students/profile/resume-upload-url');
-      
-      await axios.put(uploadUrl, file, { headers: { 'Content-Type': file.type } });
-      setFormData(prev => ({ ...prev, resumeS3Key: s3Key }));
+      // Step 1: Upload PDF directly to backend (no S3)
+      const uploadRes = await api.post(
+        '/students/profile/upload-resume',
+        file,
+        { headers: { 'Content-Type': 'application/pdf' } }
+      );
+      const { resumeUrl } = uploadRes.data;
+      setFormData(prev => ({ ...prev, resumeUrl }));
 
+      // Step 2: Parse resume from disk
       setResumeState('parsing');
-      setParseStep('Extracting skills...');
-      
-      const parseRes = await api.post('/students/profile/parse-resume', { s3Key });
+      setParseStep('Extracting skills with AI...');
+      const parseRes = await api.post('/students/profile/parse-resume', {});
       setParsedData(parseRes.data.data);
       setResumeState('review');
     } catch (err: any) {
       console.error(err);
-      toast.error(err.response?.data?.error || 'Resume parsing failed');
+      toast.error(err.response?.data?.error || 'Resume upload or parsing failed');
       setResumeState('upload');
     }
   };
@@ -158,6 +188,29 @@ function StudentCandidateProfileView() {
     }
   };
 
+  const handleAddSkill = () => {
+    const name = newSkillName.trim();
+    if (!name) return;
+    if (formData.skills.some(s => s.name.toLowerCase() === name.toLowerCase())) {
+      toast.error('Skill already added');
+      return;
+    }
+    setFormData(prev => ({ ...prev, skills: [...prev.skills, { name, level: 'Intermediate' }] }));
+    setNewSkillName('');
+  };
+
+  const handleRemoveSkill = (idx: number) => {
+    setFormData(prev => ({ ...prev, skills: prev.skills.filter((_, i) => i !== idx) }));
+  };
+
+  const handleSkillLevel = (idx: number, level: string) => {
+    setFormData(prev => {
+      const skills = [...prev.skills];
+      skills[idx] = { ...skills[idx], level };
+      return { ...prev, skills };
+    });
+  };
+
   const handleSaveAll = async () => {
     setSaving(true);
     try {
@@ -166,12 +219,15 @@ function StudentCandidateProfileView() {
         mobileNumber: formData.mobileNumber,
         githubUsername: formData.githubUsername,
         profilePublic: formData.profilePublic,
-        freezeProfile: formData.freezeProfile
+        freezeProfile: formData.freezeProfile,
+        college: formData.education[0]?.college || '',
+        degree: formData.education[0]?.degree || '',
+        graduationYear: formData.education[0]?.graduationYear || '',
       });
       await api.put('/students/profile/s2', {
         skills: formData.skills,
         links: formData.links,
-        resumeS3Key: formData.resumeS3Key
+        linkedinUrl: formData.linkedinUrl,
       });
       toast.success('Profile saved successfully!');
     } catch (err: any) {
@@ -239,16 +295,15 @@ function StudentCandidateProfileView() {
             <div>
               <div className="flex items-center justify-between text-[12.5px] mb-2">
                 <span className="text-tx2 font-medium">Proof strength</span>
-                <span className="text-tx3"><b className="text-tx font-mono text-white">40%</b> · 3 of 7 sections complete</span>
+                <span className="text-tx3"><b className="text-tx font-mono text-white">{profileStrength}%</b> · {Math.round(profileStrength / 100 * 7)} of 7 sections complete</span>
               </div>
               <div className="h-2 rounded-full bg-panel3 overflow-hidden shadow-inner border border-line/50">
-                <div className="h-full bg-gradient-to-r from-indigo to-indigo2" style={{width: '40%'}}></div>
+                <div className="h-full bg-gradient-to-r from-indigo to-indigo2 transition-all duration-500" style={{width: `${profileStrength}%`}}></div>
               </div>
             </div>
             <div className="flex items-center gap-4 text-[12px] sm:justify-end">
-              <span className="flex items-center gap-1.5 text-green"><span>✓</span> 2 verified</span>
-              <span className="flex items-center gap-1.5 text-amber"><span>○</span> 6 claimed</span>
-              <span className="flex items-center gap-1.5 text-tx3"><span>—</span> 3 empty</span>
+              <span className="flex items-center gap-1.5 text-green"><span>✓</span> {badges.length} verified</span>
+              <span className="flex items-center gap-1.5 text-amber"><span>○</span> {formData.skills.length} claimed</span>
             </div>
           </div>
         </section>
@@ -431,6 +486,140 @@ function StudentCandidateProfileView() {
                       className="w-full rounded-xl border border-line2 bg-panel3 px-4 py-3 text-[13px] text-white focus:outline-none focus:border-indigo focus:ring-1 focus:ring-indigo transition-all"
                     />
                   </div>
+                  <div className="space-y-2">
+                    <label className="text-[12px] font-bold text-tx2 uppercase tracking-wide flex items-center gap-1.5"><Linkedin className="h-4 w-4" /> LinkedIn URL</label>
+                    <input
+                      type="url"
+                      value={formData.linkedinUrl}
+                      onChange={(e) => setFormData({...formData, linkedinUrl: e.target.value})}
+                      placeholder="https://linkedin.com/in/yourname"
+                      className="w-full rounded-xl border border-line2 bg-panel3 px-4 py-3 text-[13px] text-white focus:outline-none focus:border-indigo focus:ring-1 focus:ring-indigo transition-all"
+                    />
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {activeTab === 'academic' && (
+              <section className="rounded-2xl border border-line bg-panel p-6 shadow-md animate-in fade-in duration-300">
+                <div className="flex items-center gap-2.5 mb-6 border-b border-line pb-4">
+                  <GraduationCap className="h-5 w-5 text-indigo2" />
+                  <h3 className="text-[16px] font-semibold text-white">Academic Space</h3>
+                </div>
+                
+                <div className="space-y-4 mb-6">
+                  {formData.education.length === 0 && (
+                    <p className="text-[13px] text-tx3 text-center py-4 bg-panel3 rounded-xl border border-dashed border-line2">No academic records added yet.</p>
+                  )}
+                  {formData.education.map((edu, idx) => (
+                    <div key={idx} className="flex flex-col sm:flex-row gap-3 p-4 rounded-xl bg-panel3 border border-line relative group">
+                      <div className="flex-1 space-y-1">
+                        <div className="text-[14px] font-semibold text-white">{edu.degree}</div>
+                        <div className="text-[12px] text-tx2">{edu.college}</div>
+                      </div>
+                      <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
+                        <span className="text-[12px] text-tx3 bg-panel border border-line px-2 py-1 rounded-md">Class of {edu.graduationYear}</span>
+                        <button 
+                          onClick={() => setFormData(prev => ({ ...prev, education: prev.education.filter((_, i) => i !== idx) }))}
+                          className="text-tx3 hover:text-red-400 p-1 transition-colors"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="bg-panel2 rounded-xl p-4 border border-line border-dashed">
+                  <h4 className="text-[12px] uppercase tracking-wide text-tx3 font-semibold mb-3">Add Education</h4>
+                  <div className="grid gap-3 sm:grid-cols-[1fr,1fr,100px,auto] items-end">
+                    <div>
+                      <label className="text-[11px] text-tx2 mb-1 block">Degree / Major</label>
+                      <input id="new-edu-degree" type="text" placeholder="e.g. B.Tech Computer Science" className="w-full rounded-lg border border-line2 bg-panel px-3 py-2 text-[13px] text-white focus:border-indigo focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-tx2 mb-1 block">University / College</label>
+                      <input id="new-edu-college" type="text" placeholder="e.g. MIT" className="w-full rounded-lg border border-line2 bg-panel px-3 py-2 text-[13px] text-white focus:border-indigo focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-tx2 mb-1 block">Grad Year</label>
+                      <input id="new-edu-year" type="text" placeholder="2025" className="w-full rounded-lg border border-line2 bg-panel px-3 py-2 text-[13px] text-white focus:border-indigo focus:outline-none" />
+                    </div>
+                    <button 
+                      onClick={() => {
+                        const deg = (document.getElementById('new-edu-degree') as HTMLInputElement).value;
+                        const col = (document.getElementById('new-edu-college') as HTMLInputElement).value;
+                        const yr = (document.getElementById('new-edu-year') as HTMLInputElement).value;
+                        if (deg && col && yr) {
+                          setFormData(prev => ({ ...prev, education: [...prev.education, { degree: deg, college: col, graduationYear: yr }] }));
+                          (document.getElementById('new-edu-degree') as HTMLInputElement).value = '';
+                          (document.getElementById('new-edu-college') as HTMLInputElement).value = '';
+                          (document.getElementById('new-edu-year') as HTMLInputElement).value = '';
+                        }
+                      }}
+                      className="px-3 py-2 rounded-lg bg-indigo text-white hover:bg-indigo2 transition-colors flex items-center justify-center h-[38px]"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {activeTab === 'applications' && (
+              <section className="rounded-2xl border border-line bg-panel p-6 shadow-md animate-in fade-in duration-300">
+                <div className="flex items-center gap-2.5 mb-6 border-b border-line pb-4">
+                  <Terminal className="h-5 w-5 text-indigo2" />
+                  <h3 className="text-[16px] font-semibold text-white">Applications & Projects Space</h3>
+                </div>
+                
+                <div className="space-y-3 mb-6">
+                  {formData.links.length === 0 && (
+                    <p className="text-[13px] text-tx3 text-center py-4 bg-panel3 rounded-xl border border-dashed border-line2">No external applications or projects added yet.</p>
+                  )}
+                  {formData.links.map((link, idx) => (
+                    <div key={idx} className="flex items-center gap-3 p-3 rounded-xl bg-panel3 border border-line group">
+                      <ExternalLink className="h-4 w-4 text-tx3" />
+                      <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+                        <span className="text-[13.5px] font-medium text-white">{link.label}</span>
+                        <a href={link.url} target="_blank" rel="noreferrer" className="text-[12px] text-indigo2 hover:underline truncate max-w-[300px]">{link.url}</a>
+                      </div>
+                      <button 
+                        onClick={() => setFormData(prev => ({ ...prev, links: prev.links.filter((_, i) => i !== idx) }))}
+                        className="text-tx3 hover:text-red-400 p-1 transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="bg-panel2 rounded-xl p-4 border border-line border-dashed">
+                  <h4 className="text-[12px] uppercase tracking-wide text-tx3 font-semibold mb-3">Add Application Link</h4>
+                  <div className="grid gap-3 sm:grid-cols-[1fr,2fr,auto] items-end">
+                    <div>
+                      <label className="text-[11px] text-tx2 mb-1 block">App / Project Name</label>
+                      <input id="new-link-label" type="text" placeholder="e.g. E-Commerce Clone" className="w-full rounded-lg border border-line2 bg-panel px-3 py-2 text-[13px] text-white focus:border-indigo focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-tx2 mb-1 block">Live URL or Repo</label>
+                      <input id="new-link-url" type="url" placeholder="https://..." className="w-full rounded-lg border border-line2 bg-panel px-3 py-2 text-[13px] text-white focus:border-indigo focus:outline-none" />
+                    </div>
+                    <button 
+                      onClick={() => {
+                        const lbl = (document.getElementById('new-link-label') as HTMLInputElement).value;
+                        const url = (document.getElementById('new-link-url') as HTMLInputElement).value;
+                        if (lbl && url) {
+                          setFormData(prev => ({ ...prev, links: [...prev.links, { label: lbl, url: url }] }));
+                          (document.getElementById('new-link-label') as HTMLInputElement).value = '';
+                          (document.getElementById('new-link-url') as HTMLInputElement).value = '';
+                        }
+                      }}
+                      className="px-3 py-2 rounded-lg bg-indigo text-white hover:bg-indigo2 transition-colors flex items-center justify-center h-[38px]"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               </section>
             )}
@@ -490,7 +679,77 @@ function StudentCandidateProfileView() {
               </section>
             )}
 
-            {!['resume', 'personal', 'social', 'preferences', 'achievements'].includes(activeTab) && (
+            {activeTab === 'skills' && (
+              <section className="rounded-2xl border border-line bg-panel p-6 shadow-md animate-in fade-in duration-300">
+                <div className="flex items-center gap-2.5 mb-4 border-b border-line pb-4">
+                  <Code2 className="h-5 w-5 text-indigo2" />
+                  <h3 className="text-[16px] font-semibold text-white">Skills</h3>
+                  <span className="ml-auto text-[12px] text-tx3">{formData.skills.length} skill{formData.skills.length !== 1 ? 's' : ''} · {formData.skills.filter(s => verifiedSlugs.length > 0).length > 0 ? <span className="text-green">{verifiedSlugs.length} challenge-verified</span> : 'solve challenges to verify'}</span>
+                </div>
+
+                {/* Skill list */}
+                <div className="space-y-2 mb-4">
+                  {formData.skills.length === 0 && (
+                    <p className="text-[13px] text-tx3 text-center py-6">No skills yet. Add from the field below or upload your resume.</p>
+                  )}
+                  {formData.skills.map((skill, idx) => {
+                    const isVerified = verifiedSlugs.some(slug =>
+                      slug.toLowerCase().includes(skill.name.toLowerCase().replace(/\s+/g, '-'))
+                    );
+                    return (
+                      <div key={idx} className="flex items-center gap-2 p-3 rounded-xl bg-panel3 border border-line">
+                        {isVerified
+                          ? <span className="text-green text-[11px] font-bold px-2 py-0.5 rounded bg-green/10 border border-green/30">✓ verified</span>
+                          : <span className="text-amber text-[11px] font-bold px-2 py-0.5 rounded bg-amber/10 border border-amber/30">○ claimed</span>
+                        }
+                        <span className="flex-1 text-[13px] text-white font-medium">{skill.name}</span>
+                        <select
+                          value={skill.level}
+                          onChange={e => handleSkillLevel(idx, e.target.value)}
+                          className="text-[12px] bg-panel border border-line2 text-tx2 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo"
+                        >
+                          <option>Beginner</option>
+                          <option>Intermediate</option>
+                          <option>Advanced</option>
+                        </select>
+                        <button onClick={() => handleRemoveSkill(idx)} className="text-tx3 hover:text-red-400 transition-colors p-1">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Add new skill */}
+                <div className="flex gap-2 mt-4">
+                  <input
+                    type="text"
+                    value={newSkillName}
+                    onChange={e => setNewSkillName(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleAddSkill()}
+                    placeholder="Add skill (e.g. React, PostgreSQL)"
+                    className="flex-1 rounded-xl border border-line2 bg-panel3 px-4 py-2.5 text-[13px] text-white focus:outline-none focus:border-indigo focus:ring-1 focus:ring-indigo transition-all"
+                  />
+                  <button
+                    onClick={handleAddSkill}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-indigo hover:bg-indigo/90 text-white text-[13px] font-semibold transition-all"
+                  >
+                    <Plus className="h-4 w-4" /> Add
+                  </button>
+                </div>
+
+                {/* Success results from solved problems */}
+                {formData.aggregateScore > 0 && (
+                  <div className="mt-5 p-4 rounded-xl bg-green/5 border border-green/20">
+                    <div className="text-[12px] font-bold text-green uppercase tracking-wide mb-2">📊 Aggregate Profile Score</div>
+                    <div className="text-[28px] font-black text-white font-mono">{Math.round(formData.aggregateScore)}<span className="text-[14px] text-tx3 font-normal">/100</span></div>
+                    <div className="text-[11.5px] text-tx3 mt-1">25% profile strength · 50% problem score · 25% assessment</div>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {!['resume', 'personal', 'social', 'preferences', 'achievements', 'skills'].includes(activeTab) && (
               <section className="rounded-2xl border border-line bg-panel p-6 flex items-center justify-center min-h-[400px] shadow-md animate-in fade-in duration-300">
                 <div className="text-center text-tx3 max-w-sm">
                   <div className="w-16 h-16 rounded-full bg-panel3 border border-line2 flex items-center justify-center mx-auto mb-5 shadow-sm">

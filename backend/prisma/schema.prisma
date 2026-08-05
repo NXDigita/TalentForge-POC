@@ -55,7 +55,11 @@ model User {
   skills                Json?     // Array of skill objects: { name: string, level: string }
   certifications        Json?     // Array of cert objects: { name: string, issuer: string, url: string }
   links                 Json?     // Array of link objects: { label: string, url: string }
-  resumeS3Key           String?
+  resumeUrl             String?   // Local path: /uploads/resumes/<userId>/resume.pdf
+  linkedinUrl           String?
+
+  // Computed aggregate score (updated on submission, assessment save, profile save)
+  aggregateScore        Float     @default(0)
 
   // Challenge tier unlock (payments)
   unlockedTier          String    @default("free")   // free | basic | advanced
@@ -106,7 +110,8 @@ model Submission {
   userId      String
   problem     Problem   @relation(fields: [problemId], references: [id])
   problemId   String
-  code        String
+  code        String    // stores s3Key or 'inline' marker
+  codeContent String?   // actual code stored inline (replaces S3)
   language    String    @default("python")
   score       Int?
   feedback    String?
@@ -137,14 +142,17 @@ model Badge {
 }
 
 model PsychProfile {
-  id          String   @id @default(uuid())
-  user        User     @relation(fields: [userId], references: [id])
-  userId      String   @unique
-  logical     Int
-  detail      Int
-  persistence Int
-  learning    Int
-  createdAt   DateTime @default(now())
+  id           String   @id @default(uuid())
+  user         User     @relation(fields: [userId], references: [id])
+  userId       String   @unique
+  logical      Int      @default(0)
+  detail       Int      @default(0)
+  persistence  Int      @default(0)
+  learning     Int      @default(0)
+  architecture Int      @default(0)
+  overallScore Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
 }
 
 model Review {

@@ -25,8 +25,7 @@ export class AIAdapterFactory {
       case 'claude':
       case 'anthropic':
         if (!process.env.ANTHROPIC_API_KEY) {
-          console.warn('[AIAdapterFactory] Missing ANTHROPIC_API_KEY. Falling back to MockAdapter for POC.');
-          this.instance = new MockAdapter();
+          throw new Error('Missing ANTHROPIC_API_KEY in .env. Please add it and try again.');
         } else {
           this.instance = new ClaudeAdapter();
         }
@@ -34,16 +33,16 @@ export class AIAdapterFactory {
       case 'gemini':
       case 'google':
         if (!process.env.GEMINI_API_KEY && !process.env.GOOGLE_GENAI_API_KEY) {
-          console.warn('[AIAdapterFactory] Missing GEMINI_API_KEY. Falling back to MockAdapter for POC.');
-          this.instance = new MockAdapter();
+          throw new Error('Missing GEMINI_API_KEY in .env. Please add it and try again.');
         } else {
           this.instance = new GeminiAdapter();
         }
         break;
       case 'mock':
-      default:
         this.instance = new MockAdapter();
         break;
+      default:
+        throw new Error(`Unsupported AI Provider: ${provider}. Please configure AI_PROVIDER correctly.`);
     }
 
     this.currentProviderName = provider;

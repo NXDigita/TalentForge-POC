@@ -37,6 +37,7 @@ router.get('/candidates', async (req, res) => {
         badges: true,
         psychProfile: true,
         submissions: {
+          where: { status: 'completed' },
           orderBy: { score: 'desc' },
           include: { problem: true },
         },
@@ -54,7 +55,8 @@ router.get('/candidates', async (req, res) => {
         }
 
         const bestSub = userSubs[0] || u.submissions[0] || null;
-        const totalScore = bestSub?.score ?? (u.xp > 0 ? Math.min(100, Math.round(u.xp / 10)) : 88);
+        // Use persisted aggregateScore as primary; fallback to best submission score
+        const totalScore = Math.round(u.aggregateScore) || bestSub?.score || 0;
 
         // Filter out if score < minScore
         if (totalScore < minScore) return null;
@@ -70,6 +72,20 @@ router.get('/candidates', async (req, res) => {
         const candidateName = u.isAnonymized
           ? `Anonymous Pioneer #${u.id.slice(0, 4).toUpperCase()}`
           : u.name;
+
+        // Calculate Breakdown to help employers select clearly
+        const signals = [
+          !!u.name,
+          !!u.mobileNumber,
+          !!u.githubUsername,
+          !!u.linkedinUrl,
+          !!u.resumeUrl,
+          Array.isArray(u.skills) && (u.skills as any[]).length > 0,
+          Array.isArray(u.links) && (u.links as any[]).length > 0,
+        ];
+        const profileStrength = Math.round((signals.filter(Boolean).length / signals.length) * 100);
+        const problemScore = bestSub?.score || 0;
+        const assessmentScore = u.psychProfile?.overallScore || 90; // fallback if null
 
         return {
           id: u.id,
@@ -90,6 +106,19 @@ router.get('/candidates', async (req, res) => {
           bestLanguage: bestSub?.language || 'python',
           bestCodeSample,
           submittedAt: bestSub?.createdAt || u.createdAt,
+          // New comprehensive details
+          college: u.college,
+          degree: u.degree,
+          graduationYear: u.graduationYear,
+          githubUsername: u.githubUsername,
+          linkedinUrl: u.linkedinUrl,
+          resumeUrl: u.resumeUrl,
+          skills: u.skills,
+          scoreBreakdown: {
+            profileStrength,
+            problemScore,
+            assessmentScore
+          }
         };
       })
       .filter(Boolean);
@@ -126,7 +155,8 @@ router.get('/shortlist', requireAuth, async (req: AuthenticatedRequest, res) => 
     const shortlistedCandidates = shortlists.map((s) => {
       const u = s.user;
       const bestSub = u.submissions[0] || null;
-      const totalScore = bestSub?.score ?? 90;
+      // Use persisted aggregateScore as primary source of truth
+      const totalScore = Math.round(u.aggregateScore) || bestSub?.score || 0;
       const isPublic = u.profilePublic ?? true;
 
       return {

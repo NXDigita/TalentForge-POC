@@ -303,35 +303,25 @@ export async function generateAIProblem(topic: string, difficulty: string, domai
   }
 }
 
+/** @deprecated S3 upload is no longer used. Code is sent directly to the backend. */
 export async function getPresignedUrl(problemId: string, language: string): Promise<{ uploadUrl: string; s3Key: string }> {
-  try {
-    const response = await api.get(`/students/problems/${problemId}/presigned`, {
-      params: { language },
-    });
-    return response.data;
-  } catch (err) {
-    console.warn('MinIO/S3 API unavailable, using mock upload URL');
-    return {
-      uploadUrl: 'http://localhost:9000/submissions/mock-upload-url',
-      s3Key: `submissions/mock-user/${problemId}/${Date.now()}.${language === 'python' ? 'py' : 'js'}`,
-    };
-  }
+  console.warn('[api] getPresignedUrl is deprecated — code is now submitted directly.');
+  return { uploadUrl: '', s3Key: '' };
 }
 
+/** @deprecated S3 upload is no longer used. Code is sent directly to the backend. */
 export async function uploadCodeToMinio(uploadUrl: string, code: string): Promise<void> {
-  try {
-    await axios.put(uploadUrl, code, {
-      headers: { 'Content-Type': 'text/plain' },
-    });
-  } catch (err) {
-    console.warn('Direct S3 upload failed or running in mock mode, simulating successful upload.');
-  }
+  console.warn('[api] uploadCodeToMinio is deprecated — code is now submitted directly.');
 }
 
-export async function submitSolution(problemId: string, s3Key: string, language: string): Promise<{ submissionId: string; status: string }> {
+/**
+ * Submit a coding solution directly to the backend (no S3/MinIO required).
+ * The raw code string is stored in the database via Submission.codeContent.
+ */
+export async function submitSolution(problemId: string, code: string, language: string): Promise<{ submissionId: string; status: string }> {
   try {
     const response = await api.post(`/students/problems/${problemId}/submit`, {
-      s3Key,
+      code,
       language,
     });
     return response.data;
