@@ -23,6 +23,7 @@ const PublicProfile = lazy(() => import('./pages/PublicProfile'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const AuthCallback = lazy(() => import('./pages/AuthCallback'));
 const VerifyBadge = lazy(() => import('./pages/VerifyBadge'));
+const Settings = lazy(() => import('./pages/Settings'));
 import RequireAuth from './components/RequireAuth';
 import RequireRole from './components/RequireRole';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -85,6 +86,7 @@ function App() {
                 <Route element={<RequireRole allowedRoles={['STUDENT', 'REVIEWER', 'EMPLOYER', 'ADMIN']} />}>
                   <Route path="/leaderboard" element={<Leaderboard />} />
                   <Route path="/profile" element={<Profile />} />
+                  <Route path="/settings" element={<Settings />} />
                   <Route path="/guide" element={<Guide />} />
                 </Route>
               </Route>

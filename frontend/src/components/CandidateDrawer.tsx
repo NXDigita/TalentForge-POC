@@ -69,7 +69,16 @@ export default function CandidateDrawer({
   onToggleShortlist,
 }: CandidateDrawerProps) {
   const [isInterviewModalOpen, setIsInterviewModalOpen] = useState(false);
-  const [schedulingLink, setSchedulingLink] = useState('');
+  const [schedulingLink, setSchedulingLink] = useState(() => {
+    try {
+      const saved = localStorage.getItem('tf_app_settings');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.bookingUrl) return parsed.bookingUrl;
+      }
+    } catch {}
+    return 'https://calendly.com/carthworks/30min';
+  });
   const [interviewNote, setInterviewNote] = useState('');
   const [isSendingInterview, setIsSendingInterview] = useState(false);
 

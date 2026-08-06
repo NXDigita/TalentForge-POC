@@ -1,6 +1,28 @@
 import { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Bell, Check, Sparkles, X, ShieldCheck } from 'lucide-react';
+import { 
+  Bell, 
+  Check, 
+  Sparkles, 
+  ChevronLeft, 
+  ChevronRight, 
+  ChevronDown, 
+  LayoutDashboard, 
+  Code2, 
+  BrainCircuit, 
+  History, 
+  BookOpen, 
+  Trophy, 
+  User, 
+  HelpCircle, 
+  Search, 
+  BookmarkCheck, 
+  ShieldCheck, 
+  MessageSquareText,
+  Shield,
+  Cpu,
+  Settings as SettingsIcon
+} from 'lucide-react';
 import api from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -18,12 +40,37 @@ interface NotificationItem {
   createdAt: string;
 }
 
+interface NavItem {
+  name: string;
+  path: string;
+  roles: string[];
+  icon: JSX.Element;
+}
+
+interface NavGroup {
+  section: string;
+  items: NavItem[];
+}
+
 export default function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
-  const { user, logout, isAuthenticated, switchRole } = useAuth();
+  const { user, logout, isAuthenticated } = useAuth();
   const userRole = (user?.role || 'STUDENT').toUpperCase();
+
+  // Sidebar Collapsed State (Compact vs Expanded)
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+    return localStorage.getItem('tf_sidebar_collapsed') === 'true';
+  });
+
+  const toggleSidebar = () => {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem('tf_sidebar_collapsed', String(next));
+      return next;
+    });
+  };
 
   // Notification Bell State
   const [notifications, setNotifications] = useState<NotificationItem[]>([
@@ -46,7 +93,6 @@ export default function AppShell() {
 
   useEffect(() => {
     async function fetchNotifications() {
-      // Skip if tab is hidden — no need to poll when user isn't looking
       if (document.visibilityState === 'hidden') return;
       try {
         const res = await api.get(`/students/notifications`);
@@ -54,15 +100,11 @@ export default function AppShell() {
           setNotifications(res.data.notifications);
           setUnreadCount(res.data.unreadCount || 0);
         }
-      } catch (err) {
-        // Fallback state retained
-      }
+      } catch (err) {}
     }
     fetchNotifications();
-    // Poll every 60s instead of 10s — notifications are not real-time critical
     const interval = setInterval(fetchNotifications, 60_000);
 
-    // Fetch AI Status
     async function fetchAiStatus() {
       try {
         const { getSystemHealth } = await import('../services/api');
@@ -74,7 +116,6 @@ export default function AppShell() {
     }
     fetchAiStatus();
 
-    // Also fetch immediately when the user switches back to the tab
     document.addEventListener('visibilitychange', fetchNotifications);
     return () => {
       clearInterval(interval);
@@ -85,216 +126,237 @@ export default function AppShell() {
   const handleMarkAllRead = async () => {
     try {
       await api.post(`/students/notifications/read`);
-    } catch (e) {
-      // Fallback update
-    }
+    } catch (e) {}
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     setUnreadCount(0);
   };
 
   const isLinkActive = (path: string) => {
-    if (path === '/') {
-      return location.pathname === '/';
-    }
+    if (path === '/') return location.pathname === '/';
     return location.pathname.startsWith(path);
   };
 
-  const allNavItems = [
+  // Grouped Navigation Definition
+  const allNavGroups: NavGroup[] = [
     {
-      name: 'Dashboard',
-      path: '/dashboard',
-      roles: ['STUDENT', 'ADMIN'],
-      icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-        </svg>
-      )
+      section: 'MAIN',
+      items: [
+        { name: 'Dashboard', path: '/dashboard', roles: ['STUDENT', 'ADMIN'], icon: <LayoutDashboard className="h-5 w-5" /> },
+        { name: 'Problems', path: '/problems', roles: ['STUDENT', 'ADMIN'], icon: <Code2 className="h-5 w-5" /> },
+        { name: 'Assessment', path: '/assessment', roles: ['STUDENT', 'ADMIN'], icon: <BrainCircuit className="h-5 w-5" /> },
+        { name: 'Submissions', path: '/submissions', roles: ['STUDENT', 'ADMIN'], icon: <History className="h-5 w-5" /> },
+        { name: 'Reviewer Portal', path: '/reviewer', roles: ['REVIEWER', 'ADMIN'], icon: <ShieldCheck className="h-5 w-5 text-purple-400" /> },
+        { name: 'Discover Talent', path: '/discover', roles: ['EMPLOYER', 'ADMIN'], icon: <Search className="h-5 w-5 text-indigo-400" /> },
+        { name: 'Shortlist', path: '/shortlist', roles: ['EMPLOYER', 'ADMIN'], icon: <BookmarkCheck className="h-5 w-5 text-amber-400" /> },
+      ],
     },
     {
-      name: 'Problems',
-      path: '/problems',
-      roles: ['STUDENT', 'ADMIN'],
-      icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-        </svg>
-      )
+      section: 'LEARN',
+      items: [
+        { name: 'Learning Center', path: '/learning', roles: ['STUDENT', 'ADMIN'], icon: <BookOpen className="h-5 w-5" /> },
+        { name: 'Leaderboard', path: '/leaderboard', roles: ['STUDENT', 'REVIEWER', 'EMPLOYER', 'ADMIN'], icon: <Trophy className="h-5 w-5" /> },
+      ],
     },
     {
-      name: 'Assessment',
-      path: '/assessment',
-      roles: ['STUDENT', 'ADMIN'],
-      icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-        </svg>
-      )
+      section: 'ACCOUNT',
+      items: [
+        { name: 'Profile', path: '/profile', roles: ['STUDENT', 'REVIEWER', 'EMPLOYER', 'ADMIN'], icon: <User className="h-5 w-5" /> },
+        { name: 'Settings', path: '/settings', roles: ['STUDENT', 'REVIEWER', 'EMPLOYER', 'ADMIN'], icon: <SettingsIcon className="h-5 w-5" /> },
+        { name: 'Guide', path: '/guide', roles: ['STUDENT', 'REVIEWER', 'EMPLOYER', 'ADMIN'], icon: <HelpCircle className="h-5 w-5" /> },
+      ],
     },
-    {
-      name: 'Submissions',
-      path: '/submissions',
-      roles: ['STUDENT', 'ADMIN'],
-      icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      )
-    },
-    {
-      name: 'Learning Center',
-      path: '/learning',
-      roles: ['STUDENT', 'ADMIN'],
-      icon: (
-        <svg className="h-5 w-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-        </svg>
-      )
-    },
-    {
-      name: 'Reviewer Portal',
-      path: '/reviewer',
-      roles: ['REVIEWER', 'ADMIN'],
-      icon: (
-        <svg className="h-5 w-5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-        </svg>
-      )
-    },
-    {
-      name: 'Discover Talent',
-      path: '/discover',
-      roles: ['EMPLOYER', 'ADMIN'],
-      icon: (
-        <svg className="h-5 w-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-      )
-    },
-    {
-      name: 'Shortlist',
-      path: '/shortlist',
-      roles: ['EMPLOYER', 'ADMIN'],
-      icon: (
-        <svg className="h-5 w-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-        </svg>
-      )
-    },
-    {
-      name: 'Leaderboard',
-      path: '/leaderboard',
-      roles: ['STUDENT', 'REVIEWER', 'EMPLOYER', 'ADMIN'],
-      icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-        </svg>
-      )
-    },
-    {
-      name: 'Profile',
-      path: '/profile',
-      roles: ['STUDENT', 'REVIEWER', 'EMPLOYER', 'ADMIN'],
-      icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-        </svg>
-      )
-    },
-    {
-      name: 'Guide',
-      path: '/guide',
-      roles: ['STUDENT', 'REVIEWER', 'EMPLOYER', 'ADMIN'],
-      icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      )
-    }
   ];
 
-  const navItems = allNavItems.filter((item) => userRole === 'ADMIN' || item.roles.includes(userRole));
+  const filteredGroups = allNavGroups
+    .map((group) => ({
+      section: group.section,
+      items: group.items.filter((item) => userRole === 'ADMIN' || item.roles.includes(userRole)),
+    }))
+    .filter((group) => group.items.length > 0);
 
   return (
     <div className="tf-shell flex h-screen w-screen overflow-hidden dark:bg-slate-950 midnight:bg-bg font-sans dark:text-slate-100 midnight:text-tx transition-colors duration-200" style={{ fontFamily: 'Inter,ui-sans-serif,system-ui,sans-serif' }}>
-      {/* Sidebar */}
-      <aside className="tf-sidebar flex w-64 flex-col border-r dark:border-slate-800 midnight:border-line dark:bg-slate-900 midnight:bg-panel transition-colors duration-200">
+      
+      {/* ─── SIDEBAR NAVIGATION (Compact vs Expanded) ───────────────────────── */}
+      <aside
+        className={`tf-sidebar flex flex-col border-r dark:border-slate-800 midnight:border-line dark:bg-slate-900 midnight:bg-panel transition-all duration-300 ${
+          isCollapsed ? 'w-20' : 'w-64'
+        }`}
+      >
         {/* Brand Header */}
-        <div className="flex h-16 items-center px-6 border-b dark:border-slate-800 midnight:border-line" style={{ borderColor: 'var(--border)' }}>
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl text-white font-bold" style={{ background: 'linear-gradient(135deg,#10B981,#059669)', boxShadow: '0 4px 12px rgba(16,185,129,.3)' }}>
+        <div className="flex h-16 items-center justify-between px-4 border-b dark:border-slate-800 midnight:border-line" style={{ borderColor: 'var(--border)' }}>
+          <div className={`flex items-center gap-3 ${isCollapsed ? 'mx-auto' : ''}`}>
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white font-bold" style={{ background: 'linear-gradient(135deg,#10B981,#059669)', boxShadow: '0 4px 12px rgba(16,185,129,.3)' }}>
               TF
             </div>
-            <div>
-              <h1 className="text-base font-bold tracking-tight dark:text-white" style={{ color: 'var(--ink)', letterSpacing: '-.02em', fontFamily: '"Plus Jakarta Sans",sans-serif' }}>TalentForge</h1>
-              <span className="text-[10px] font-medium dark:text-slate-500 uppercase tracking-wider" style={{ color: 'var(--ink3)', letterSpacing: '.1em' }}>POC Workspace</span>
-            </div>
+            {!isCollapsed && (
+              <div className="min-w-0">
+                <h1 className="text-sm font-extrabold tracking-tight dark:text-white truncate" style={{ color: 'var(--ink)', letterSpacing: '-.02em', fontFamily: '"Plus Jakarta Sans",sans-serif' }}>
+                  TalentForge
+                </h1>
+                <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">
+                  PCC • Workspace
+                </p>
+              </div>
+            )}
           </div>
+
+          {/* Collapsible Sidebar Toggle Button */}
+          {!isCollapsed && (
+            <button
+              onClick={toggleSidebar}
+              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition"
+              title="Collapse Sidebar"
+              aria-label="Collapse Sidebar"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
-        {/* Navigation Links */}
-        <nav className="flex-1 space-y-1 px-4 py-6">
-          {navItems.map((item) => {
-            const active = isLinkActive(item.path);
-            return (
-              <Link
-                key={item.name}
-                to={item.path}
-                className={`tf-nav-link ${active ? 'active' : ''} flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all duration-200 ${
-                  active
-                    ? 'dark:bg-brand-950/30 dark:text-brand-400'
-                    : 'dark:text-slate-400 dark:hover:bg-slate-800/40 dark:hover:text-white'
-                }`}
-              >
-                <span className={`tf-nav-icon ${active ? 'active' : ''} dark:${active ? 'text-brand-400' : 'text-slate-500'}`}>
-                  {item.icon}
-                </span>
-                {item.name}
-              </Link>
-            );
-          })}
+        {/* Expand Toggle Button (when collapsed) */}
+        {isCollapsed && (
+          <div className="flex justify-center py-2 border-b dark:border-slate-800/60" style={{ borderColor: 'var(--border)' }}>
+            <button
+              onClick={toggleSidebar}
+              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-white transition"
+              title="Expand Sidebar"
+              aria-label="Expand Sidebar"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Grouped Navigation Links */}
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+          {filteredGroups.map((group) => (
+            <div key={group.section} className="space-y-1">
+              {/* Group Section Label */}
+              {!isCollapsed ? (
+                <h3 className="px-3 text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 select-none">
+                  {group.section}
+                </h3>
+              ) : (
+                <div className="h-px bg-slate-800 my-2" />
+              )}
+
+              {group.items.map((item) => {
+                const active = isLinkActive(item.path);
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.path}
+                    title={isCollapsed ? item.name : undefined}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 ${
+                      isCollapsed ? 'justify-center' : ''
+                    } ${
+                      active
+                        ? 'bg-indigo-50/90 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 font-bold border border-indigo-200/60 dark:border-indigo-800/40 shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <span className={`shrink-0 ${active ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500'}`}>
+                      {item.icon}
+                    </span>
+                    {!isCollapsed && <span className="truncate">{item.name}</span>}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
-        {/* AI Status Indicator */}
-        <div className="px-6 py-2 border-t dark:border-slate-800 midnight:border-line flex items-center gap-2" style={{ borderColor: 'var(--border)' }}>
-          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-indigo-50 dark:bg-indigo-900/30 text-indigo-500">
-            <Sparkles className="h-3.5 w-3.5" />
-          </div>
-          <div className="flex-1 flex items-center justify-between min-w-0">
-            <span className="text-xs font-medium dark:text-slate-400 truncate" style={{ color: 'var(--ink2)' }}>
-              {aiProvider.name}
-            </span>
-            <div className="flex items-center gap-1.5">
-              <div className={`h-1.5 w-1.5 rounded-full ${aiProvider.status === 'ok' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : aiProvider.status === 'loading' ? 'bg-amber-400 animate-pulse' : 'bg-red-500'}`} />
-              <span className="text-[10px] dark:text-slate-500 uppercase" style={{ color: 'var(--ink3)' }}>
-                {aiProvider.status === 'ok' ? 'READY' : aiProvider.status === 'loading' ? 'WAIT' : 'ERR'}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Sidebar Footer / User & Role Widget */}
-        <div className="border-t dark:border-slate-800 midnight:border-line p-4 space-y-2" style={{ borderColor: 'var(--border)' }}>
-          <div className="flex items-center gap-3 rounded-xl p-2 transition-colors" style={{ cursor: 'default' }} onMouseEnter={e=>(e.currentTarget.style.background='var(--tint)')} onMouseLeave={e=>(e.currentTarget.style.background='transparent')}>
-            <div className="h-9 w-9 rounded-full bg-purple-600/20 text-purple-400 font-bold flex items-center justify-center text-sm border border-purple-500/30">
-              {user?.name?.[0]?.toUpperCase() || 'U'}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <p className="text-xs font-semibold dark:text-slate-300 truncate" style={{ color: 'var(--ink)' }}>{user?.name || 'Anonymous User'}</p>
-                <span className="rounded bg-purple-500/20 px-1.5 py-0.5 text-[9px] font-black text-purple-300 border border-purple-500/30">
-                  {userRole}
-                </span>
+        {/* Bottom Actions Area */}
+        <div className="p-3 border-t dark:border-slate-800 midnight:border-line space-y-2 shrink-0" style={{ borderColor: 'var(--border)' }}>
+          
+          {/* Ask Assistant AI Button */}
+          {!isCollapsed ? (
+            <button
+              onClick={() => setIsCopilotOpen(true)}
+              className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-indigo-50/90 dark:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-800/40 text-indigo-600 dark:text-indigo-300 font-bold text-xs transition hover:bg-indigo-100 dark:hover:bg-indigo-900/60"
+            >
+              <div className="flex items-center gap-2.5">
+                <MessageSquareText className="h-4 w-4 text-indigo-500" />
+                <span>Ask Assistant</span>
               </div>
-              <p className="text-[10px] dark:text-slate-500 truncate" style={{ color: 'var(--ink3)' }}>{user?.domain?.toUpperCase() || 'CSE'} • {user?.tier || 'Explorer'}</p>
-            </div>
-          </div>
+              <span className="rounded-md bg-indigo-600 text-white text-[10px] font-black px-1.5 py-0.5">AI</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => setIsCopilotOpen(true)}
+              title="Ask Assistant AI"
+              className="relative mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-800/40 text-indigo-600 dark:text-indigo-400 transition hover:scale-105"
+            >
+              <MessageSquareText className="h-5 w-5" />
+              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-600 text-white text-[9px] font-bold">AI</span>
+            </button>
+          )}
+
+          {/* Notifications Button */}
+          {!isCollapsed ? (
+            <button
+              onClick={() => setIsNotifOpen(!isNotifOpen)}
+              className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white transition"
+            >
+              <div className="flex items-center gap-2.5">
+                <Bell className="h-4 w-4 text-slate-500" />
+                <span>Notifications</span>
+              </div>
+              {unreadCount > 0 && (
+                <span className="rounded-full bg-red-500 text-white text-[10px] font-extrabold px-2 py-0.5">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+          ) : (
+            <button
+              onClick={() => setIsNotifOpen(!isNotifOpen)}
+              title="Notifications"
+              className="relative mx-auto flex h-10 w-10 items-center justify-center rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition"
+            >
+              <Bell className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-900" />
+              )}
+            </button>
+          )}
+
+          {/* User Profile Card */}
+          {!isCollapsed ? (
+            <Link
+              to="/profile"
+              className="flex items-center justify-between gap-3 rounded-xl p-2 transition hover:bg-slate-100 dark:hover:bg-slate-800/60"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-600/20 text-indigo-400 font-bold text-sm border border-indigo-500/30">
+                  {user?.name?.[0]?.toUpperCase() || 'K'}
+                  <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{user?.name || 'Karthikeyan T'}</p>
+                  <p className="text-[11px] text-slate-500 truncate">View Profile</p>
+                </div>
+              </div>
+              <ChevronDown className="h-4 w-4 text-slate-400 shrink-0" />
+            </Link>
+          ) : (
+            <Link
+              to="/profile"
+              title={`${user?.name || 'User'} - View Profile`}
+              className="relative mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-indigo-600/20 text-indigo-400 font-bold text-sm border border-indigo-500/30 transition hover:scale-105"
+            >
+              {user?.name?.[0]?.toUpperCase() || 'K'}
+              <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" />
+            </Link>
+          )}
 
         </div>
       </aside>
 
-      {/* Main Layout Area */}
+      {/* ─── MAIN LAYOUT AREA ────────────────────────────────────────────────── */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Topbar */}
+        {/* Topbar Header */}
         <header className="tf-topbar flex h-16 items-center justify-between border-b dark:border-slate-800 dark:bg-slate-900 px-8 transition-colors duration-200" style={{ boxShadow: '0 1px 0 var(--border)' }}>
           <div>
             <h2 className="text-sm font-medium dark:text-slate-400" style={{ color: 'var(--ink3)', fontFamily: '"JetBrains Mono",monospace', fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase' }}>
@@ -312,65 +374,72 @@ export default function AppShell() {
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Student Notification Bell with Unread Count */}
-            <div className="relative">
-              <button
-                onClick={() => setIsNotifOpen(!isNotifOpen)}
-                className="relative rounded-xl border dark:border-slate-800 dark:bg-slate-800/50 p-2 dark:text-slate-400 dark:hover:text-white transition-all" style={{ border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink2)' }}
-                aria-label="Student Notifications"
-              >
-                <Bell className="h-4 w-4" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-black text-white animate-pulse">
-                    {unreadCount}
-                  </span>
-                )}
-              </button>
-
-              {/* Notification Popover Dropdown */}
-              {isNotifOpen && (
-                <div className="absolute right-0 top-12 z-50 w-80 overflow-hidden rounded-2xl dark:border-slate-800 dark:bg-slate-900 p-4 space-y-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: '0 2px 4px rgba(17,24,38,.06),0 20px 50px -16px rgba(17,24,38,.18)', borderRadius: 16 }}>
-                  <div className="flex items-center justify-between border-b dark:border-slate-800 pb-2" style={{ borderColor: 'var(--border)' }}>
-                    <h4 className="text-xs font-bold dark:text-white flex items-center gap-1.5" style={{ color: 'var(--ink)', fontFamily: '"Plus Jakarta Sans",sans-serif' }}>
-                      <Sparkles className="h-3.5 w-3.5" style={{ color: 'var(--indigo)' }} /> Notifications
-                    </h4>
-                    {unreadCount > 0 && (
-                      <button
-                        onClick={handleMarkAllRead}
-                        className="text-[10px] font-bold text-purple-400 hover:underline flex items-center gap-1"
-                      >
-                        <Check className="h-3 w-3" /> Mark Read
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {notifications.length === 0 ? (
-                      <p className="text-xs text-center py-3" style={{ color: 'var(--ink3)' }}>No notifications right now.</p>
-                    ) : (
-                      notifications.map((item) => (
-                        <div
-                          key={item.id}
-                          style={!item.read
-                            ? { background: 'var(--in-dim)', border: '1px solid rgba(79,70,229,.2)', borderRadius: 10, padding: 12 }
-                            : { background: 'var(--tint)', border: '1px solid var(--border)', borderRadius: 10, padding: 12 }
-                          }
-                          className="text-xs space-y-1 transition"
-                        >
-                          <div className="flex items-center justify-between font-bold">
-                            <span className="flex items-center gap-1" style={{ color: 'var(--ink)' }}>
-                              <ShieldCheck className="h-3.5 w-3.5" style={{ color: 'var(--indigo)' }} /> {item.title}
-                            </span>
-                          </div>
-                          <p className="text-[11px] leading-relaxed" style={{ color: 'var(--ink2)' }}>
-                            {item.message}
-                          </p>
-                        </div>
-                      ))
-                    )}
-                  </div>
+            {/* Notification Popover Dropdown */}
+            {isNotifOpen && (
+              <div className="absolute right-24 top-14 z-50 w-80 overflow-hidden rounded-2xl dark:border-slate-800 dark:bg-slate-900 p-4 space-y-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: '0 2px 4px rgba(17,24,38,.06),0 20px 50px -16px rgba(17,24,38,.18)', borderRadius: 16 }}>
+                <div className="flex items-center justify-between border-b dark:border-slate-800 pb-2" style={{ borderColor: 'var(--border)' }}>
+                  <h4 className="text-xs font-bold dark:text-white flex items-center gap-1.5" style={{ color: 'var(--ink)', fontFamily: '"Plus Jakarta Sans",sans-serif' }}>
+                    <Sparkles className="h-3.5 w-3.5" style={{ color: 'var(--indigo)' }} /> Notifications
+                  </h4>
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={handleMarkAllRead}
+                      className="text-[10px] font-bold text-purple-400 hover:underline flex items-center gap-1"
+                    >
+                      <Check className="h-3 w-3" /> Mark Read
+                    </button>
+                  )}
                 </div>
-              )}
+
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <p className="text-xs text-center py-3" style={{ color: 'var(--ink3)' }}>No notifications right now.</p>
+                  ) : (
+                    notifications.map((item) => (
+                      <div
+                        key={item.id}
+                        style={!item.read
+                          ? { background: 'var(--in-dim)', border: '1px solid rgba(79,70,229,.2)', borderRadius: 10, padding: 12 }
+                          : { background: 'var(--tint)', border: '1px solid var(--border)', borderRadius: 10, padding: 12 }
+                        }
+                        className="text-xs space-y-1 transition"
+                      >
+                        <div className="flex items-center justify-between font-bold">
+                          <span className="flex items-center gap-1" style={{ color: 'var(--ink)' }}>
+                            <Shield className="h-3.5 w-3.5" style={{ color: 'var(--indigo)' }} /> {item.title}
+                          </span>
+                        </div>
+                        <p className="text-[11px] leading-relaxed" style={{ color: 'var(--ink2)' }}>
+                          {item.message}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* AI Model Status Badge */}
+            <div
+              className="flex items-center gap-2 rounded-xl px-3 py-1.5 border text-xs font-semibold shadow-sm transition"
+              style={{ border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink)' }}
+              title={`Active AI Provider: ${aiProvider.name}`}
+            >
+              <div className="flex h-5 w-5 items-center justify-center rounded-md bg-indigo-500/10 text-indigo-500">
+                <Cpu className="h-3.5 w-3.5" />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-mono text-[11px] tracking-tight">{aiProvider.name}</span>
+                <div
+                  className={`h-2 w-2 rounded-full ${
+                    aiProvider.status === 'ok'
+                      ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]'
+                      : aiProvider.status === 'loading'
+                      ? 'bg-amber-400 animate-pulse'
+                      : 'bg-red-500'
+                  }`}
+                />
+              </div>
             </div>
 
             {/* Theme Toggle Button */}
@@ -410,8 +479,6 @@ export default function AppShell() {
                 onClick={logout}
                 className="rounded-xl border dark:border-slate-700 dark:bg-slate-800 px-4 py-1.5 text-xs font-semibold dark:text-slate-300 transition-all dark:hover:bg-slate-700 dark:hover:text-white"
                 style={{ border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink2)' }}
-                onMouseEnter={e=>{e.currentTarget.style.background='var(--tint)';e.currentTarget.style.color='var(--ink)'}}
-                onMouseLeave={e=>{e.currentTarget.style.background='var(--surface)';e.currentTarget.style.color='var(--ink2)'}}
               >
                 Sign Out
               </button>
@@ -439,7 +506,7 @@ export default function AppShell() {
           <div className="mx-auto max-w-5xl">
             <Outlet />
           </div>
-          
+
           {/* Global Copilot FAB */}
           {isAuthenticated && (
             <button
@@ -453,6 +520,7 @@ export default function AppShell() {
           )}
         </main>
       </div>
+
       <CopilotDrawer isOpen={isCopilotOpen} onClose={() => setIsCopilotOpen(false)} />
       <OnboardingTour />
       <FeedbackWidget />
