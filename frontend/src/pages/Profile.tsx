@@ -130,6 +130,9 @@ function StudentCandidateProfileView() {
         aggregateScore: res.data.aggregateScore || 0,
         aiSummary: res.data.aiSummary || '',
       }));
+      if (Array.isArray(res.data.badges) && res.data.badges.length > 0) {
+        setBadges(res.data.badges);
+      }
       // Collect problem slugs with completed submissions (for skill verification badges)
       const completedSlugs = (res.data.submissions || []).map((s: any) => s.problem?.slug).filter(Boolean);
       setVerifiedSlugs(completedSlugs);
@@ -146,7 +149,11 @@ function StudentCandidateProfileView() {
       }
     }).catch(console.error);
 
-    getUserBadges().then(setBadges).catch(console.error);
+    getUserBadges().then(b => {
+      if (Array.isArray(b) && b.length > 0) {
+        setBadges(b);
+      }
+    }).catch(console.error);
   }, []);
 
   const handleFileDrop = async (e: DragEvent) => {

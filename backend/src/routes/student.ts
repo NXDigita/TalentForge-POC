@@ -10,6 +10,7 @@ import { getAIAdapter } from '../services/ai/aiAdapterFactory';
 import { calculateGithubScore } from '../services/githubScoreService';
 import { userNotifications } from './reviewer';
 import { computeAndSaveAggregateScore } from '../services/aggregateScore';
+import { checkAndAwardBadge } from '../services/badgeService';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -31,7 +32,7 @@ router.get('/profile', requireAuth, async (req: AuthenticatedRequest, res) => {
         skills: true, certifications: true, links: true,
         aggregateScore: true, aiSummary: true,
         college: true, degree: true, graduationYear: true,
-        badges: { select: { id: true, title: true, mintedAt: true, score: true, problemSlug: true } },
+        badges: { select: { id: true, verifyId: true, title: true, problemTitle: true, problemSlug: true, score: true, status: true, pdfUrl: true, createdAt: true } },
         psychProfile: true,
         submissions: {
           where: { status: 'completed' },
@@ -47,6 +48,47 @@ router.get('/profile', requireAuth, async (req: AuthenticatedRequest, res) => {
   } catch (err) {
     console.error('Profile fetch error:', err);
     return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── GET /api/students/badges ────────────────────────────────────────────────
+router.get('/badges', requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    let badges = await prisma.badge.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Auto-heal: Check if user has passed submissions (score >= 75) without a Badge record
+    const passedSubmissions = await prisma.submission.findMany({
+      where: { userId, status: 'completed', score: { gte: 75 } },
+      include: { problem: true },
+    });
+
+    const existingProblemSlugs = new Set(badges.map((b) => b.problemSlug));
+
+    for (const sub of passedSubmissions) {
+      if (sub.problem && (!sub.problem.slug || !existingProblemSlugs.has(sub.problem.slug))) {
+        const newBadge = await checkAndAwardBadge(userId, sub.problemId, sub.score || 85);
+        if (newBadge && sub.problem.slug) {
+          existingProblemSlugs.add(sub.problem.slug);
+        }
+      }
+    }
+
+    // Re-fetch updated badge list
+    badges = await prisma.badge.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return res.json(badges);
+  } catch (err: any) {
+    console.error('Badges fetch error:', err);
+    return res.status(500).json({ error: 'Failed to fetch badges' });
   }
 });
 

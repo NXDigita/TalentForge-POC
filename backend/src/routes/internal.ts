@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { checkAndAwardBadge } from '../services/badgeService';
 import { getAIAdapter } from '../services/ai/aiAdapterFactory';
+import { computeAndSaveAggregateScore } from '../services/aggregateScore';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -74,6 +75,7 @@ router.patch('/submissions/:id', requireInternalSecret, async (req, res) => {
             currentStreak,
             longestStreak,
             lastActivityDate: new Date(),
+            xp: { increment: typeof score === 'number' ? score : 50 },
          }
       });
 
@@ -115,6 +117,9 @@ router.patch('/submissions/:id', requireInternalSecret, async (req, res) => {
          });
       }
     }
+
+    // Auto-update student's aggregate score in DB
+    await computeAndSaveAggregateScore(submission.userId);
 
     return res.json({ ok: true, submission, badge: awardedBadge });
   } catch (err: any) {

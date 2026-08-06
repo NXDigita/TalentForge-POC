@@ -289,30 +289,6 @@ export default function AppShell() {
             </div>
           </div>
 
-          {/* Dev Mode Role Workflow Switcher */}
-          <div className="pt-1 flex items-center justify-between text-[10px] border-t dark:border-slate-800/60" style={{ color: 'var(--ink3)', borderColor: 'var(--border)' }}>
-            <span>Role Workflow:</span>
-            <select
-              value={userRole}
-              onChange={(e) => {
-                const newRole = e.target.value;
-                switchRole(newRole);
-                if (newRole === 'REVIEWER') {
-                  navigate('/reviewer');
-                } else if (newRole === 'EMPLOYER') {
-                  navigate('/discover');
-                } else {
-                  navigate('/dashboard');
-                }
-              }}
-              className="dark:bg-slate-800 dark:text-slate-200 rounded px-1.5 py-0.5 font-mono text-[10px] border dark:border-slate-700 focus:outline-none" style={{ background: 'var(--tint)', color: 'var(--ink)', borderColor: 'var(--border2)' }}
-            >
-              <option value="STUDENT">Student Candidate</option>
-              <option value="REVIEWER">Expert Reviewer</option>
-              <option value="EMPLOYER">Employer Recruiter</option>
-              <option value="ADMIN">Admin Manager</option>
-            </select>
-          </div>
         </div>
       </aside>
 

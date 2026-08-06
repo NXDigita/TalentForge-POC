@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Terminal,
   ChevronDown,
@@ -48,6 +48,13 @@ export default function ResultsPanel({
 }: ResultsPanelProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Auto-expand Execution Terminal & Score Proof when submission starts or finishes
+  useEffect(() => {
+    if (status === 'preparing' || status === 'queued' || status === 'running' || status === 'completed') {
+      setIsCollapsed(false);
+    }
+  }, [status]);
 
   const handleCopyStderr = () => {
     if (!stderr) return;

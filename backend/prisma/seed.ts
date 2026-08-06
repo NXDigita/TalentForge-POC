@@ -22,16 +22,50 @@ async function main() {
     },
   });
 
-  await prisma.user.upsert({
+  const studentUser = await prisma.user.upsert({
     where: { email: 'student@college.edu' },
-    update: { password: hashedPassword },
+    update: { password: hashedPassword, badgesEarned: 2 },
     create: {
       email: 'student@college.edu',
       password: hashedPassword,
       name: 'Demo Student',
       domain: 'cse',
       tier: 'Explorer',
-      xp: 0,
+      xp: 450,
+      badgesEarned: 2,
+    },
+  });
+
+  // Seed 2 sample badges for Demo Student
+  await prisma.badge.upsert({
+    where: { id: 'seed-badge-1' },
+    update: {},
+    create: {
+      id: 'seed-badge-1',
+      verifyId: '8f9e2b10-7a3c-4d5e-9f0a-1b2c3d4e5f6a',
+      userId: studentUser.id,
+      title: 'Two Sum Verified Badge',
+      problemTitle: 'Two Sum',
+      problemSlug: 'two-sum',
+      score: 98,
+      status: 'AI_VERIFIED',
+      pdfUrl: '/api/verify/8f9e2b10-7a3c-4d5e-9f0a-1b2c3d4e5f6a/pdf',
+    },
+  });
+
+  await prisma.badge.upsert({
+    where: { id: 'seed-badge-2' },
+    update: {},
+    create: {
+      id: 'seed-badge-2',
+      verifyId: '3c4d5e6f-7a8b-9c0d-1e2f-3a4b5c6d7e8f',
+      userId: studentUser.id,
+      title: 'LRU Cache Verified Badge',
+      problemTitle: 'LRU Cache',
+      problemSlug: 'lru-cache',
+      score: 92,
+      status: 'EXPERT_VERIFIED',
+      pdfUrl: '/api/verify/3c4d5e6f-7a8b-9c0d-1e2f-3a4b5c6d7e8f/pdf',
     },
   });
 
