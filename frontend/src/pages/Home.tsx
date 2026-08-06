@@ -21,24 +21,76 @@ export default function Home() {
         ::selection{background:#10B981;color:#fff}
         .soft{box-shadow:0 1px 2px rgba(17,24,38,.04),0 10px 30px -16px rgba(17,24,38,.14)}
         .soft-sm{box-shadow:0 1px 2px rgba(17,24,38,.05),0 6px 16px -12px rgba(17,24,38,.12)}
-        .card{background:#fff;border:1px solid #E7E9E5;border-radius:18px}
+        .card{background:#fff;border:1px solid #E7E9E5;border-radius:18px;transition:transform .22s cubic-bezier(.2,.8,.2,1),box-shadow .22s cubic-bezier(.2,.8,.2,1),border-color .22s}
+        .card:hover{transform:translateY(-3px);box-shadow:0 2px 4px rgba(17,24,38,.06),0 18px 40px -16px rgba(17,24,38,.18);border-color:#D8DBD5}
         .eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase}
         .hero-wash{background:radial-gradient(60% 50% at 20% 0%,rgba(79,70,229,.08),transparent 60%),radial-gradient(50% 45% at 90% 5%,rgba(16,185,129,.10),transparent 60%)}
         .dotgrid{background-image:radial-gradient(rgba(17,24,38,.06) 1px,transparent 1px);background-size:22px 22px}
-        .btn-em{background:#059669;color:#fff;border-radius:12px;font-weight:600;transition:.12s}
-        .btn-em:hover{background:#047857}
-        .btn-in{background:#4F46E5;color:#fff;border-radius:12px;font-weight:600;transition:.12s}
-        .btn-in:hover{background:#4338CA}
-        .btn-ghost{background:#fff;color:#111826;border:1px solid #D8DBD5;border-radius:12px;font-weight:600;transition:.12s}
-        .btn-ghost:hover{border-color:#9AA3AF}
-        .ulink{color:#059669;font-weight:600}
+        .btn-em{background:#059669;color:#fff;border-radius:12px;font-weight:600;transition:transform .1s,background .15s,box-shadow .15s}
+        .btn-em:hover{background:#047857;transform:translateY(-1px);box-shadow:0 6px 20px -6px rgba(5,150,105,.45)}
+        .btn-em:active{transform:translateY(0)}
+        .btn-in{background:#4F46E5;color:#fff;border-radius:12px;font-weight:600;transition:transform .1s,background .15s,box-shadow .15s}
+        .btn-in:hover{background:#4338CA;transform:translateY(-1px);box-shadow:0 6px 20px -6px rgba(79,70,229,.45)}
+        .btn-in:active{transform:translateY(0)}
+        .btn-ghost{background:#fff;color:#111826;border:1px solid #D8DBD5;border-radius:12px;font-weight:600;transition:transform .1s,border-color .15s,background .15s}
+        .btn-ghost:hover{border-color:#9AA3AF;background:#F9FAFB;transform:translateY(-1px)}
+        .ulink{color:#059669;font-weight:600;transition:color .15s}
         .ulink:hover{color:#047857;text-decoration:underline;text-underline-offset:3px}
+        .nav-link{position:relative;color:#4B5563;text-decoration:none;transition:color .15s}
+        .nav-link::after{content:'';position:absolute;bottom:-2px;left:0;width:0;height:2px;background:#059669;border-radius:2px;transition:width .22s cubic-bezier(.2,.8,.2,1)}
+        .nav-link:hover{color:#111826}
+        .nav-link:hover::after{width:100%}
         details>summary{list-style:none}
         details>summary::-webkit-details-marker{display:none}
         details[open] .faq-x{transform:rotate(45deg)}
+        details>summary:hover{color:#059669}
+        details.card:hover{transform:none;box-shadow:0 1px 2px rgba(17,24,38,.05),0 6px 16px -12px rgba(17,24,38,.12)}
+
+        /* ── background floating education icons ── */
+        .edu-canvas{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+        .edu-particle{position:absolute;opacity:0;font-size:18px;animation:eduFloat linear infinite}
+        @keyframes eduFloat{
+          0%{opacity:0;transform:translateY(0) rotate(0deg) scale(.8)}
+          10%{opacity:.12}
+          85%{opacity:.10}
+          100%{opacity:0;transform:translateY(-120px) rotate(25deg) scale(1.1)}
+        }
+
+        /* ── score bar segment hover ── */
+        .score-seg{transition:filter .18s,transform .18s}
+        .score-seg:hover{filter:brightness(1.12);transform:scaleY(1.06)}
+
+        /* ── badge card seal pop ── */
         @keyframes pop{0%{opacity:0;transform:scale(.7)}60%{opacity:1;transform:scale(1.06)}100%{opacity:1;transform:scale(1)}}
         .seal{animation:pop .5s cubic-bezier(.2,.9,.3,1) both}
+
+        /* ── pipeline step number glow on card hover ── */
+        .pipeline-card:hover .pipe-num{background:#4F46E5;color:#fff;box-shadow:0 0 12px rgba(79,70,229,.4)}
+        .pipe-num{transition:background .2s,color .2s,box-shadow .2s}
+
+        /* ── trust strip number count-up feel ── */
+        .trust-num{display:inline-block;transition:transform .2s}
+        .trust-item:hover .trust-num{transform:scale(1.08)}
+
+        /* ── testimonial card tilt ── */
+        .testimonial-card{transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s}
+        .testimonial-card:hover{transform:translateY(-4px) rotate(-.4deg);box-shadow:0 2px 4px rgba(17,24,38,.06),0 24px 48px -20px rgba(17,24,38,.18)}
+
+        /* ── FAQ row hover ── */
+        .faq-row{transition:background .18s}
+        .faq-row summary:hover .faq-x{color:#4F46E5}
+        .faq-x{transition:transform .22s,color .18s}
+
+        /* ── CTA card shimmer ── */
+        .cta-card{position:relative;overflow:hidden}
+        .cta-card::before{content:'';position:absolute;top:-60%;left:-75%;width:55%;height:200%;background:linear-gradient(105deg,transparent 40%,rgba(255,255,255,.08) 50%,transparent 60%);transform:skewX(-20deg);animation:shimmer 4s ease-in-out infinite}
+        @keyframes shimmer{0%,100%{left:-75%}50%{left:130%}}
+
+        @media(prefers-reduced-motion:reduce){
+          .card,.btn-em,.btn-in,.btn-ghost,.edu-particle,.cta-card::before,.seal{animation:none;transition:none;transform:none}
+        }
       `}</style>
+
 
       {/* ═══ NAV ═══ */}
       <header style={{ background: 'rgba(251,251,249,.85)', borderBottom: '1px solid #E7E9E5', backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 50 }}>
@@ -51,12 +103,12 @@ export default function Home() {
               TalentForge
             </span>
           </Link>
-          <nav className="hidden md:flex items-center gap-6" style={{ fontSize: 13.5, color: '#4B5563', fontWeight: 500 }}>
-            <a href="#how" style={{ color: '#4B5563', textDecoration: 'none' }} className="hover:text-[#111826]">How it works</a>
-            <a href="#candidates" style={{ color: '#4B5563', textDecoration: 'none' }} className="hover:text-[#111826]">For candidates</a>
-            <a href="#employers" style={{ color: '#4B5563', textDecoration: 'none' }} className="hover:text-[#111826]">For employers</a>
-            <a href="#badges" style={{ color: '#4B5563', textDecoration: 'none' }} className="hover:text-[#111826]">Badges</a>
-            <a href="#faq" style={{ color: '#4B5563', textDecoration: 'none' }} className="hover:text-[#111826]">FAQ</a>
+          <nav className="hidden md:flex items-center gap-6" style={{ fontSize: 13.5, fontWeight: 500 }}>
+            <a href="#how" className="nav-link">How it works</a>
+            <a href="#candidates" className="nav-link">For candidates</a>
+            <a href="#employers" className="nav-link">For employers</a>
+            <a href="#badges" className="nav-link">Badges</a>
+            <a href="#faq" className="nav-link">FAQ</a>
           </nav>
           <div className="ml-auto flex items-center gap-3">
             <Link to="/login" style={{ fontSize: 13.5, color: '#4B5563', fontWeight: 500, textDecoration: 'none' }} className="hidden sm:block hover:text-[#111826]">Sign in</Link>
@@ -70,6 +122,29 @@ export default function Home() {
         {/* ═══ HERO ═══ */}
         <section className="relative hero-wash" style={{ borderBottom: '1px solid #E7E9E5', overflow: 'hidden' }}>
           <div className="absolute inset-0 dotgrid pointer-events-none" style={{ opacity: .5 }} />
+
+          {/* Floating education & skill particles */}
+          <div className="edu-canvas">
+            {[
+              { icon: '📚', left: '8%',  top: '70%', delay: '0s',   dur: '9s'  },
+              { icon: '💡', left: '18%', top: '80%', delay: '1.5s', dur: '11s' },
+              { icon: '🧠', left: '30%', top: '75%', delay: '3s',   dur: '8s'  },
+              { icon: '⚙️', left: '50%', top: '85%', delay: '0.8s', dur: '10s' },
+              { icon: '🔬', left: '62%', top: '72%', delay: '2.2s', dur: '12s' },
+              { icon: '🏅', left: '75%', top: '80%', delay: '4s',   dur: '9s'  },
+              { icon: '📊', left: '85%', top: '68%', delay: '1s',   dur: '13s' },
+              { icon: '✍️', left: '93%', top: '78%', delay: '3.5s', dur: '10s' },
+              { icon: '🎓', left: '42%', top: '82%', delay: '5s',   dur: '11s' },
+              { icon: '💻', left: '55%', top: '88%', delay: '2s',   dur: '8s'  },
+            ].map(({ icon, left, top, delay, dur }) => (
+              <span
+                key={icon + left}
+                className="edu-particle"
+                style={{ left, top, animationDelay: delay, animationDuration: dur }}
+              >{icon}</span>
+            ))}
+          </div>
+
           <div className="relative max-w-6xl mx-auto px-5 py-16 lg:py-20 grid lg:grid-cols-2 gap-12 items-center">
 
             <div>
@@ -162,8 +237,8 @@ export default function Home() {
         <section style={{ borderBottom: '1px solid #E7E9E5', background: '#fff' }}>
           <div className="max-w-6xl mx-auto px-5 grid grid-cols-2 md:grid-cols-4" style={{ borderColor: '#E7E9E5' }}>
             {[['4-part', 'weighted fair score'], ['8', 'architect-grade problems'], ['10', 'hidden tests on the flagship'], ['100%', 'auditable on PolygonScan']].map(([num, label]) => (
-              <div key={num} style={{ padding: '32px 20px', borderRight: '1px solid #E7E9E5' }}>
-                <div className="font-display" style={{ fontWeight: 800, fontSize: 28, color: '#059669', lineHeight: 1 }}>{num}</div>
+              <div key={num} className="trust-item" style={{ padding: '32px 20px', borderRight: '1px solid #E7E9E5' }}>
+                <div className="font-display trust-num" style={{ fontWeight: 800, fontSize: 28, color: '#059669', lineHeight: 1 }}>{num}</div>
                 <div style={{ fontSize: 12, color: '#4B5563', marginTop: 8 }}>{label}</div>
               </div>
             ))}
@@ -186,8 +261,8 @@ export default function Home() {
               ['04', 'AI-verified', 'Passing the threshold earns a provisional badge.'],
               ['05', 'Expert review', 'A senior engineer approves it — or revokes it.'],
             ].map(([n, title, desc]) => (
-              <div key={n} className="card soft-sm" style={{ padding: 24 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: '#ECEBFE', color: '#4F46E5', display: 'grid', placeItems: 'center', fontFamily: 'JetBrains Mono,monospace', fontSize: 13, fontWeight: 600 }}>{n}</div>
+              <div key={n} className="card soft-sm pipeline-card" style={{ padding: 24 }}>
+                <div className="pipe-num" style={{ width: 32, height: 32, borderRadius: 8, background: '#ECEBFE', color: '#4F46E5', display: 'grid', placeItems: 'center', fontFamily: 'JetBrains Mono,monospace', fontSize: 13, fontWeight: 600 }}>{n}</div>
                 <div className="font-display" style={{ fontWeight: 700, fontSize: 16, marginTop: 12 }}>{title}</div>
                 <p style={{ fontSize: 13, color: '#4B5563', marginTop: 6 }}>{desc}</p>
               </div>
@@ -349,15 +424,16 @@ export default function Home() {
           </div>
         </section>
 
+
         {/* ═══ TESTIMONIALS ═══ */}
         <section style={{ borderTop: '1px solid #E7E9E5', borderBottom: '1px solid #E7E9E5', background: '#F2F6F4' }}>
           <div className="max-w-6xl mx-auto px-5 grid md:grid-cols-2 gap-5" style={{ paddingTop: 64, paddingBottom: 64 }}>
-            <figure className="card soft-sm" style={{ padding: 28, margin: 0 }}>
+            <figure className="card soft-sm testimonial-card" style={{ padding: 28, margin: 0 }}>
               <div className="font-display" style={{ color: '#4F46E5', fontSize: 48, lineHeight: 1 }}>"</div>
               <blockquote style={{ fontSize: 16, lineHeight: 1.7, marginTop: 8 }}>I stopped attaching a résumé. I send my <span style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: 14, color: '#059669' }}>/p</span> link and let the badges do the talking — recruiters check the code themselves.</blockquote>
               <figcaption style={{ fontSize: 12.5, color: '#4B5563', marginTop: 16, fontFamily: 'JetBrains Mono,monospace' }}>— Final-year CSE student · Architect tier</figcaption>
             </figure>
-            <figure className="card soft-sm" style={{ padding: 28, margin: 0 }}>
+            <figure className="card soft-sm testimonial-card" style={{ padding: 28, margin: 0 }}>
               <div className="font-display" style={{ color: '#059669', fontSize: 48, lineHeight: 1 }}>"</div>
               <blockquote style={{ fontSize: 16, lineHeight: 1.7, marginTop: 8 }}>The inspect drawer told me more in ninety seconds than three phone screens. Verified score, radar, real code — then one click to schedule.</blockquote>
               <figcaption style={{ fontSize: 12.5, color: '#4B5563', marginTop: 16, fontFamily: 'JetBrains Mono,monospace' }}>— Engineering hiring lead · early-stage startup</figcaption>
@@ -376,10 +452,10 @@ export default function Home() {
               ['What languages are supported?', 'Python, JavaScript and Java in the Monaco editor — each graded in an isolated container for correctness, Big-O complexity and style.'],
               ['Can I resubmit to improve a score?', 'Yes, with a 60-second cooldown between attempts. Your profile reflects your best verified result.'],
             ].map(([q, a]) => (
-              <details key={q} className="card soft-sm" style={{ padding: '0 20px' }}>
+              <details key={q} className="card soft-sm faq-row" style={{ padding: '0 20px' }}>
                 <summary style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '20px 0', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans,sans-serif', fontWeight: 700, fontSize: 16, listStyle: 'none' }}>
                   {q}
-                  <span className="faq-x" style={{ marginLeft: 'auto', color: '#059669', fontSize: 24, lineHeight: 1, transition: 'transform .2s' }}>+</span>
+                  <span className="faq-x" style={{ marginLeft: 'auto', color: '#059669', fontSize: 24, lineHeight: 1 }}>+</span>
                 </summary>
                 <p style={{ fontSize: 13.5, color: '#4B5563', lineHeight: 1.7, paddingBottom: 20 }}>{a}</p>
               </details>
@@ -389,14 +465,14 @@ export default function Home() {
 
         {/* ═══ FINAL CTA ═══ */}
         <section className="max-w-6xl mx-auto px-5" style={{ paddingBottom: 80 }}>
-          <div className="soft" style={{ position: 'relative', overflow: 'hidden', borderRadius: 24, background: 'linear-gradient(135deg,#4F46E5,#3F37C9)', color: '#fff', padding: 'clamp(40px,6vw,56px)', textAlign: 'center' }}>
+          <div className="soft cta-card" style={{ borderRadius: 24, background: 'linear-gradient(135deg,#4F46E5,#3F37C9)', color: '#fff', padding: 'clamp(40px,6vw,56px)', textAlign: 'center' }}>
             <div className="absolute inset-0 dotgrid pointer-events-none" style={{ opacity: .2 }} />
             <div style={{ position: 'relative' }}>
               <h2 className="font-display" style={{ fontWeight: 800, fontSize: 36, letterSpacing: '-.02em' }}>Ready to prove it?</h2>
               <p style={{ fontSize: 15, color: 'rgba(255,255,255,.8)', marginTop: 12, maxWidth: '52ch', marginLeft: 'auto', marginRight: 'auto' }}>Candidates earn verified badges. Employers hire on evidence. Pick your side.</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 32 }}>
-                <Link to="/assessment" style={{ background: '#fff', color: '#4F46E5', padding: '14px 24px', fontSize: 14.5, borderRadius: 12, fontWeight: 600, textDecoration: 'none', transition: '.12s' }}>Take the assessment</Link>
-                <Link to="/register" style={{ border: '1px solid rgba(255,255,255,.5)', color: '#fff', padding: '14px 24px', fontSize: 14.5, borderRadius: 12, fontWeight: 600, textDecoration: 'none', transition: '.12s' }}>Create a recruiter account</Link>
+                <Link to="/assessment" style={{ background: '#fff', color: '#4F46E5', padding: '14px 24px', fontSize: 14.5, borderRadius: 12, fontWeight: 600, textDecoration: 'none', transition: 'transform .1s,opacity .1s' }} onMouseEnter={e => (e.currentTarget.style.opacity='.9')} onMouseLeave={e => (e.currentTarget.style.opacity='1')}>Take the assessment</Link>
+                <Link to="/register" style={{ border: '1px solid rgba(255,255,255,.5)', color: '#fff', padding: '14px 24px', fontSize: 14.5, borderRadius: 12, fontWeight: 600, textDecoration: 'none', transition: 'background .15s' }} onMouseEnter={e => (e.currentTarget.style.background='rgba(255,255,255,.12)')} onMouseLeave={e => (e.currentTarget.style.background='transparent')}>Create a recruiter account</Link>
               </div>
             </div>
           </div>
