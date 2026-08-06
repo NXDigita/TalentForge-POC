@@ -12,6 +12,7 @@ import {
 import axios from 'axios';
 import { toast } from 'sonner';
 import CandidateDrawer, { CandidateData } from '../components/CandidateDrawer';
+import HiringStepper from '../components/HiringStepper';
 
 export default function EmployerShortlist() {
   const [shortlist, setShortlist] = useState<CandidateData[]>([]);
@@ -148,6 +149,11 @@ export default function EmployerShortlist() {
                         <Bot className="h-3 w-3" /> AI Verified
                       </span>
                     )}
+                  </div>
+
+                  {/* Horizontal Hiring Pipeline Stepper */}
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                    <HiringStepper currentStage="SHORTLISTED" compact />
                   </div>
                 </div>
 

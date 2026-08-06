@@ -15,6 +15,7 @@ import {
   Bot,
   CalendarPlus,
 } from 'lucide-react';
+import HiringStepper, { HiringStage } from './HiringStepper';
 import RadarChart from './RadarChart';
 import api from '../services/api';
 import { toast } from 'sonner';
@@ -179,6 +180,16 @@ export default function CandidateDrawer({
 
           {/* Drawer Body Scroll */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            {/* Customized Employer Horizontal Stepper */}
+            <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-5 shadow-sm">
+              <HiringStepper
+                currentStage={candidate.isShortlisted ? 'SHORTLISTED' : 'DISCOVERED'}
+                onStageChange={(newStage) => {
+                  toast.success(`Hiring pipeline status for ${candidate.name} updated to "${newStage}"`);
+                }}
+              />
+            </div>
+
             {/* Top Stat Cards */}
             <div className="grid grid-cols-3 gap-3">
               <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-4 text-center group relative cursor-help">
