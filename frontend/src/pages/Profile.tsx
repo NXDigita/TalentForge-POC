@@ -34,6 +34,7 @@ import {
 import { useEffect, useState, useRef, DragEvent, ChangeEvent } from 'react';
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, Radar, Tooltip as RechartsTooltip } from 'recharts';
 import { toast } from 'sonner';
+import { Link } from 'react-router-dom';
 import BadgeCard, { BadgeData } from '../components/BadgeCard';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -92,6 +93,7 @@ function StudentCandidateProfileView() {
     links: [] as {label: string, url: string}[],
     resumeUrl: '',
     aggregateScore: 0,
+    aiSummary: '',
   });
   
   const [saving, setSaving] = useState(false);
@@ -126,10 +128,22 @@ function StudentCandidateProfileView() {
         links: (res.data.links as any[] | null) || [],
         resumeUrl: res.data.resumeUrl || '',
         aggregateScore: res.data.aggregateScore || 0,
+        aiSummary: res.data.aiSummary || '',
       }));
       // Collect problem slugs with completed submissions (for skill verification badges)
       const completedSlugs = (res.data.submissions || []).map((s: any) => s.problem?.slug).filter(Boolean);
       setVerifiedSlugs(completedSlugs);
+      
+      // If resume exists, show the review state
+      if (res.data.resumeUrl) {
+        setResumeState('review');
+        setParsedData({
+          skills: (res.data.skills as any[] | null) || [],
+          education: (res.data.college || res.data.degree) 
+            ? [{ college: res.data.college || '', degree: res.data.degree || '', graduationYear: res.data.graduationYear || '' }] 
+            : []
+        });
+      }
     }).catch(console.error);
 
     getUserBadges().then(setBadges).catch(console.error);
@@ -209,6 +223,21 @@ function StudentCandidateProfileView() {
       skills[idx] = { ...skills[idx], level };
       return { ...prev, skills };
     });
+  };
+
+  const [generatingAI, setGeneratingAI] = useState(false);
+  const handleGenerateAISummary = async () => {
+    setGeneratingAI(true);
+    try {
+      const res = await api.post('/students/profile/ai-summary', {});
+      setFormData(prev => ({ ...prev, aiSummary: res.data.aiSummary }));
+      toast.success('AI Recommendation generated!');
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.response?.data?.error || 'Failed to generate AI summary');
+    } finally {
+      setGeneratingAI(false);
+    }
   };
 
   const handleSaveAll = async () => {
@@ -324,9 +353,18 @@ function StudentCandidateProfileView() {
               </div>
               <p className="text-[13px] text-tx3 mt-1">Candidate profile — evidence recruiters can verify independently</p>
             </div>
-            <div className="ml-auto flex items-center gap-2 px-3.5 py-2 rounded-lg border border-green/30 bg-green/5 text-green text-[12.5px] font-semibold verified-glow shadow-inner">
-              <span>◈</span> Polygon-verified
-              <span className="text-[11px] font-normal text-tx3 border-l border-line2 pl-2 ml-1">2 skills on-chain</span>
+            <div className="ml-auto flex items-center gap-3">
+              <Link 
+                to={`/p/${user?.id}`}
+                target="_blank"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg border border-indigo/30 bg-indigo/10 text-indigo2 text-[12.5px] font-semibold hover:bg-indigo/20 transition-colors"
+              >
+                <ExternalLink className="h-3.5 w-3.5" /> Public View
+              </Link>
+              <div className="flex items-center gap-2 px-3.5 py-2 rounded-lg border border-green/30 bg-green/5 text-green text-[12.5px] font-semibold verified-glow shadow-inner">
+                <span>◈</span> Polygon-verified
+                <span className="text-[11px] font-normal text-tx3 border-l border-line2 pl-2 ml-1">2 skills on-chain</span>
+              </div>
             </div>
           </div>
 
@@ -347,6 +385,28 @@ function StudentCandidateProfileView() {
             </div>
           </div>
         </section>
+
+          {/* AI Recommendation Box */}
+          <div className="mt-5 p-5 rounded-2xl border border-indigo/20 bg-indigo/5 relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none"><Sparkles className="w-24 h-24 text-indigo2" /></div>
+            <div className="flex justify-between items-start mb-3 relative z-10">
+              <h3 className="text-[14px] font-bold flex items-center gap-2 text-white">
+                <Sparkles className="h-4 w-4 text-indigo2" /> AI Executive Recommendation
+              </h3>
+              <button 
+                onClick={handleGenerateAISummary}
+                disabled={generatingAI}
+                className="px-4 py-1.5 rounded-lg bg-indigo text-white text-[12px] font-semibold hover:bg-indigo2 transition-colors disabled:opacity-50"
+              >
+                {generatingAI ? 'Generating...' : formData.aiSummary ? 'Regenerate' : 'Generate Summary'}
+              </button>
+            </div>
+            {formData.aiSummary ? (
+              <p className="text-[13px] text-tx2 leading-relaxed relative z-10">{formData.aiSummary}</p>
+            ) : (
+              <p className="text-[13px] text-tx3 italic relative z-10">Click generate to let AI write a professional recommendation based on your verified skills and resume.</p>
+            )}
+          </div>
 
         {/* TAB BAR */}
         <nav className="mt-5 flex flex-wrap gap-1.5">

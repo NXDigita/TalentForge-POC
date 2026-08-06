@@ -19,6 +19,7 @@ const EmployerShortlist = lazy(() => import('./pages/EmployerShortlist'));
 const Guide = lazy(() => import('./pages/Guide'));
 const Learning = lazy(() => import('./pages/Learning'));
 const AdminPortal = lazy(() => import('./pages/AdminPortal'));
+const PublicProfile = lazy(() => import('./pages/PublicProfile'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const AuthCallback = lazy(() => import('./pages/AuthCallback'));
 const VerifyBadge = lazy(() => import('./pages/VerifyBadge'));
@@ -46,6 +47,7 @@ function App() {
             {/* Public Unrestricted Routes */}
             <Route path="/auth-callback" element={<AuthCallback />} />
             <Route path="/verify/:id" element={<VerifyBadge />} />
+            <Route path="/p/:id" element={<PublicProfile />} />
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />

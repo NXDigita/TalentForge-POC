@@ -57,6 +57,8 @@ model User {
   links                 Json?     // Array of link objects: { label: string, url: string }
   resumeUrl             String?   // Local path: /uploads/resumes/<userId>/resume.pdf
   linkedinUrl           String?
+  aiSummary             String?   @db.Text
+
 
   // Computed aggregate score (updated on submission, assessment save, profile save)
   aggregateScore        Float     @default(0)

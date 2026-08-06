@@ -29,7 +29,7 @@ router.get('/profile', requireAuth, async (req: AuthenticatedRequest, res) => {
         linkedinUrl: true, resumeUrl: true,
         profilePublic: true, profileFrozen: true,
         skills: true, certifications: true, links: true,
-        aggregateScore: true,
+        aggregateScore: true, aiSummary: true,
         college: true, degree: true, graduationYear: true,
         badges: { select: { id: true, title: true, mintedAt: true, score: true, problemSlug: true } },
         psychProfile: true,
@@ -47,6 +47,46 @@ router.get('/profile', requireAuth, async (req: AuthenticatedRequest, res) => {
   } catch (err) {
     console.error('Profile fetch error:', err);
     return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── POST /api/students/profile/ai-summary ─────────────────────────────────
+router.post('/profile/ai-summary', requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { badges: true }
+    });
+
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const adapter = getAIAdapter();
+    const prompt = `
+      You are an expert tech recruiter. Write a highly professional, 2-3 sentence executive recommendation summary for this candidate.
+      Focus on their verified skills, badges earned, and tier. Do not mention that this is an AI generation. Make it sound like a glowing recommendation.
+
+      Candidate Name: ${user.name}
+      Domain: ${user.domain}
+      Tier: ${user.tier}
+      Successful Submissions: ${user.successfulSubmissions}
+      Badges Earned: ${user.badgesEarned}
+      Skills Claimed: ${JSON.stringify(user.skills || [])}
+    `;
+
+    const summaryData = await adapter.generateText(prompt);
+    
+    await prisma.user.update({
+      where: { id: userId },
+      data: { aiSummary: summaryData } as any
+    });
+
+    return res.json({ ok: true, aiSummary: summaryData });
+  } catch (err: any) {
+    console.error('AI summary generation failed:', err);
+    return res.status(500).json({ error: 'AI summary generation failed', details: err.message });
   }
 });
 

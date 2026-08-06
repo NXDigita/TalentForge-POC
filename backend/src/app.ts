@@ -20,6 +20,7 @@ import reviewsRoutes from './routes/reviews';
 import employerRoutes from './routes/employers';
 import paymentsRoutes from './routes/payments';
 import lmsRoutes from './routes/lms';
+import publicRoutes from './routes/public';
 import { publicApiRateLimiter } from './middleware/rateLimiter';
 import { AIAdapterFactory } from './services/ai/aiAdapterFactory';
 
@@ -80,6 +81,7 @@ app.get('/', (req, res) => {
     problemsApi: `http://${host}/api/students/problems`,
   });
 });
+app.use('/api/public', publicRoutes);
 app.use('/api/auth',     authRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/verify',   publicApiRateLimiter, verifyRoutes);
