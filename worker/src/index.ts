@@ -127,8 +127,46 @@ async function fetchCode(s3Key: string, language: string): Promise<string> {
   return '';
 }
 
+let prismaClient: any = null;
+try {
+  const { PrismaClient } = require('@prisma/client');
+  prismaClient = new PrismaClient();
+} catch (e) {
+  // Optional Prisma client fallback
+}
+
 /**
- * Fetch all test cases for a problem from the backend internal API.
+ * Helper to fetch internal backend APIs with fallback across candidate ports/hosts.
+ */
+async function fetchWithFallback(
+  path: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  const primaryUrl = process.env.BACKEND_INTERNAL_URL ?? 'http://127.0.0.1:5001';
+  const candidateUrls = Array.from(new Set([
+    primaryUrl,
+    'http://127.0.0.1:5001',
+    'http://localhost:5001',
+    'http://127.0.0.1:5002',
+    'http://localhost:5002',
+  ])).filter(Boolean);
+
+  let lastError: Error | null = null;
+  for (const baseUrl of candidateUrls) {
+    try {
+      const fullUrl = `${baseUrl.replace(/\/$/, '')}${path}`;
+      const res = await fetch(fullUrl, options);
+      if (res.ok) return res;
+    } catch (err: any) {
+      lastError = err;
+    }
+  }
+
+  throw new Error(`Backend internal API unreachable: ${lastError?.message || 'fetch failed'}`);
+}
+
+/**
+ * Fetch all test cases for a problem from the backend internal API or direct DB fallback.
  */
 async function fetchTestCases(
   backendUrl: string,
@@ -136,16 +174,32 @@ async function fetchTestCases(
   secret:     string,
 ): Promise<ProblemCasesResponse> {
   try {
-    const res = await fetch(`${backendUrl}/internal/problems/${problemId}/cases`, {
+    const res = await fetchWithFallback(`/internal/problems/${problemId}/cases`, {
       headers: { 'x-internal-secret': secret },
     });
 
-    if (!res.ok) {
-      throw new Error(`Failed to fetch test cases for problem ${problemId}: HTTP ${res.status}`);
-    }
-
     return await (res.json() as Promise<ProblemCasesResponse>);
   } catch (err: any) {
+    if (prismaClient) {
+      try {
+        const problem = await prismaClient.problem.findUnique({
+          where: { id: problemId },
+          select: { id: true, slug: true, title: true, publicTestCases: true, hiddenTestCases: true },
+        });
+        if (problem) {
+          console.log(`[Worker] Direct DB fallback fetched test cases for problem ${problemId}`);
+          return {
+            problemId: problem.id,
+            slug: problem.slug,
+            title: problem.title,
+            publicTestCases:  (problem.publicTestCases  as any) ?? [],
+            hiddenTestCases:  (problem.hiddenTestCases  as any) ?? [],
+          };
+        }
+      } catch (dbErr: any) {
+        console.warn('[Worker] Direct DB fallback failed:', dbErr.message);
+      }
+    }
     // If backend is unreachable, throw an infrastructure error to trigger retry
     throw new Error(`InfraError: Backend internal API unreachable: ${err.message}`);
   }
@@ -299,27 +353,46 @@ const worker = new Worker<GradeJobData>(
     try {
       const scores = await runGrader(job);
 
-      // Patch Submission row in DB via backend internal API
-      const backendUrl = process.env.BACKEND_INTERNAL_URL ?? 'http://localhost:5001';
-      const secret     = process.env.INTERNAL_SECRET      ?? 'tf-internal';
+      // Patch Submission row in DB via backend internal API with fallback
+      const secret = process.env.INTERNAL_SECRET ?? 'tf-internal';
 
-      const patchRes = await fetch(`${backendUrl}/internal/submissions/${submissionId}`, {
-        method:  'PATCH',
-        headers: {
-          'Content-Type':     'application/json',
-          'x-internal-secret': secret,
-        },
-        body: JSON.stringify({
-          status:   'completed',
-          score:    scores.total,
-          feedback: JSON.stringify(scores.feedback),
-        }),
-      });
+      let patchRes: Response | null = null;
+      try {
+        patchRes = await fetchWithFallback(`/internal/submissions/${submissionId}`, {
+          method:  'PATCH',
+          headers: {
+            'Content-Type':     'application/json',
+            'x-internal-secret': secret,
+          },
+          body: JSON.stringify({
+            status:   'completed',
+            score:    scores.total,
+            feedback: JSON.stringify(scores.feedback),
+          }),
+        });
+      } catch (err: any) {
+        console.warn(`[Worker] HTTP patch failed for submission ${submissionId}, using DB fallback:`, err.message);
+        if (prismaClient) {
+          try {
+            await prismaClient.submission.update({
+              where: { id: submissionId },
+              data: {
+                status:   'completed',
+                score:    scores.total,
+                feedback: JSON.stringify(scores.feedback),
+              },
+            });
+            console.log(`[Worker] Direct DB fallback successfully updated submission ${submissionId}`);
+          } catch (dbErr: any) {
+            console.error('[Worker] Direct DB fallback update failed:', dbErr.message);
+          }
+        }
+      }
 
       let awardedBadgeId = undefined;
-      if (!patchRes.ok) {
+      if (patchRes && !patchRes.ok) {
         console.warn(`[Worker] Failed to patch submission ${submissionId}:`, await patchRes.text());
-      } else {
+      } else if (patchRes) {
         try {
           const patchData = await patchRes.json();
           if (patchData.badge) {

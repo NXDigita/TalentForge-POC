@@ -3,7 +3,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -67,107 +68,191 @@ export default function Register() {
   };
 
   return (
-    <div className="mx-auto max-w-md rounded-2xl bg-white p-8 border border-slate-100 shadow-xl shadow-slate-100/50">
-      <div className="mb-6 space-y-4">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Create Account</h2>
-          <p className="text-sm text-slate-500 mt-1">Get started with TalentForge performance testing</p>
-        </div>
+    <div style={{
+      width: '100%',
+      maxWidth: 440,
+      background: 'var(--surface)',
+      border: '1px solid var(--border)',
+      borderRadius: 20,
+      padding: 32,
+      boxShadow: '0 1px 2px rgba(17,24,38,.04), 0 16px 40px -16px rgba(17,24,38,.12)',
+      color: 'var(--ink)'
+    }}>
+      <style>{`
+        .reg-input {
+          width: 100%;
+          border: 1px solid var(--border);
+          border-radius: 10px;
+          background: var(--surface);
+          padding: 10px 14px;
+          font-size: 14px;
+          color: var(--ink);
+          outline: none;
+          transition: border-color .15s, box-shadow .15s;
+          box-sizing: border-box;
+        }
+        .reg-input:focus {
+          border-color: var(--indigo);
+          box-shadow: 0 0 0 3px rgba(79,70,229,.12);
+        }
+        .reg-input.error {
+          border-color: #EF4444;
+        }
+        .reg-label {
+          display: block;
+          font-size: 11px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: .1em;
+          color: var(--ink2);
+          margin-bottom: 6px;
+          font-family: 'JetBrains Mono', monospace;
+        }
+        .reg-btn-primary {
+          width: 100%;
+          background: var(--indigo);
+          color: #ffffff;
+          border: none;
+          border-radius: 10px;
+          padding: 12px;
+          font-size: 14px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: background .15s, transform .1s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+        }
+        .reg-btn-primary:hover {
+          background: #4338CA;
+        }
+        .reg-btn-primary:disabled {
+          opacity: .5;
+          cursor: not-allowed;
+        }
+        .reg-tab {
+          flex: 1;
+          border-radius: 8px;
+          padding: 8px 12px;
+          font-size: 12px;
+          font-weight: 600;
+          border: none;
+          cursor: pointer;
+          transition: all .15s;
+        }
+      `}</style>
 
-        {/* Account Mode Selector */}
-        <div className="flex rounded-xl bg-slate-100 p-1 text-xs font-bold">
-          <button
-            type="button"
-            onClick={() => setIsEmployer(false)}
-            className={`flex-1 rounded-lg py-2 transition ${!isEmployer ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
-          >
-            Candidate Student
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsEmployer(true)}
-            className={`flex-1 rounded-lg py-2 transition ${isEmployer ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
-          >
-            Employer Recruiter
-          </button>
-        </div>
+      {/* Header */}
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 800, fontSize: 26, letterSpacing: '-.02em', color: 'var(--ink)', margin: 0 }}>Create account</h1>
+        <p style={{ fontSize: 13.5, color: 'var(--ink2)', marginTop: 6 }}>Get started with TalentForge verified skill proof</p>
       </div>
 
+      {/* Account Mode Selector */}
+      <div style={{ display: 'flex', background: 'var(--tint)', borderRadius: 12, padding: 4, marginBottom: 24, border: '1px solid var(--border)' }}>
+        <button
+          type="button"
+          onClick={() => setIsEmployer(false)}
+          className="reg-tab"
+          style={!isEmployer ? { background: 'var(--surface)', color: 'var(--ink)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { background: 'transparent', color: 'var(--ink3)' }}
+        >
+          Candidate Student
+        </button>
+        <button
+          type="button"
+          onClick={() => setIsEmployer(true)}
+          className="reg-tab"
+          style={isEmployer ? { background: 'var(--indigo)', color: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' } : { background: 'transparent', color: 'var(--ink3)' }}
+        >
+          Employer Recruiter
+        </button>
+      </div>
+
+      {/* Error Alert */}
       {apiError && (
-        <div className="mb-4 rounded-xl bg-red-50 p-4 border border-red-100 text-xs font-semibold text-red-600">
+        <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 10, padding: '12px 14px', fontSize: 13, color: '#DC2626', marginBottom: 20, fontWeight: 500 }}>
           {apiError}
         </div>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      {/* Form */}
+      <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">Name</label>
+          <label className="reg-label">Full Name</label>
           <input
             {...register('name')}
-            className={`mt-1.5 w-full rounded-xl border bg-slate-50/50 px-3.5 py-2.5 text-sm outline-none transition-all duration-200 ${
-              errors.name ? 'border-red-300 focus:border-red-500' : 'border-slate-200 focus:border-brand-500 focus:bg-white'
-            }`}
-            placeholder="John Doe"
+            className={`reg-input${errors.name ? ' error' : ''}`}
+            placeholder="Rohan Sharma"
           />
           {errors.name && (
-            <p className="mt-1.5 text-xs font-medium text-red-600">{errors.name.message}</p>
+            <p style={{ fontSize: 12, color: '#EF4444', marginTop: 4 }}>{errors.name.message}</p>
           )}
         </div>
 
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">Email Address</label>
+          <label className="reg-label">Email Address</label>
           <input
             type="email"
             {...register('email')}
-            className={`mt-1.5 w-full rounded-xl border bg-slate-50/50 px-3.5 py-2.5 text-sm outline-none transition-all duration-200 ${
-              errors.email ? 'border-red-300 focus:border-red-500' : 'border-slate-200 focus:border-brand-500 focus:bg-white'
-            }`}
-            placeholder="john@college.edu"
+            className={`reg-input${errors.email ? ' error' : ''}`}
+            placeholder="rohan@college.edu"
           />
           {errors.email && (
-            <p className="mt-1.5 text-xs font-medium text-red-600">{errors.email.message}</p>
+            <p style={{ fontSize: 12, color: '#EF4444', marginTop: 4 }}>{errors.email.message}</p>
           )}
         </div>
 
-        <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">Domain Selection</label>
-          <select
-            {...register('domain')}
-            className={`mt-1.5 w-full rounded-xl border bg-slate-50/50 px-3.5 py-2.5 text-sm outline-none transition-all duration-200 ${
-              errors.domain ? 'border-red-300 focus:border-red-500' : 'border-slate-200 focus:border-brand-500 focus:bg-white'
-            }`}
-          >
-            <option value="cse">Computer Science Engineering (CSE)</option>
-            <option value="ece">Electronics & Communication Engineering (ECE)</option>
-          </select>
-          {errors.domain && (
-            <p className="mt-1.5 text-xs font-medium text-red-600">{errors.domain.message}</p>
-          )}
-        </div>
+        {isEmployer ? (
+          <div>
+            <label className="reg-label">Company Name</label>
+            <input
+              type="text"
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+              className="reg-input"
+              placeholder="Acme Corp"
+            />
+          </div>
+        ) : (
+          <div>
+            <label className="reg-label">Domain Selection</label>
+            <select
+              {...register('domain')}
+              className={`reg-input${errors.domain ? ' error' : ''}`}
+            >
+              <option value="cse" style={{ background: 'var(--surface)', color: 'var(--ink)' }}>Computer Science Engineering (CSE)</option>
+              <option value="ece" style={{ background: 'var(--surface)', color: 'var(--ink)' }}>Electronics & Communication Engineering (ECE)</option>
+            </select>
+            {errors.domain && (
+              <p style={{ fontSize: 12, color: '#EF4444', marginTop: 4 }}>{errors.domain.message}</p>
+            )}
+          </div>
+        )}
 
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">Password</label>
+          <label className="reg-label">Password</label>
           <input
             type="password"
             {...register('password')}
-            className={`mt-1.5 w-full rounded-xl border bg-slate-50/50 px-3.5 py-2.5 text-sm outline-none transition-all duration-200 ${
-              errors.password ? 'border-red-300 focus:border-red-500' : 'border-slate-200 focus:border-brand-500 focus:bg-white'
-            }`}
+            className={`reg-input${errors.password ? ' error' : ''}`}
             placeholder="••••••••"
           />
           {errors.password && (
-            <p className="mt-1.5 text-xs font-medium text-red-600">{errors.password.message}</p>
+            <p style={{ fontSize: 12, color: '#EF4444', marginTop: 4 }}>{errors.password.message}</p>
           )}
         </div>
 
-        <button
-          className="w-full rounded-xl bg-brand-600 py-3 text-sm font-semibold text-white shadow-md shadow-brand-500/20 transition-all hover:bg-brand-700 hover:shadow-brand-500/30 disabled:opacity-50"
-          type="submit"
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? 'Creating account...' : 'Create account'}
+        <button className="reg-btn-primary" type="submit" disabled={isSubmitting}>
+          {isSubmitting && <Loader2 size={16} className="animate-spin" />}
+          {isSubmitting ? 'Creating account...' : 'Create account →'}
         </button>
       </form>
+
+      <p style={{ marginTop: 24, textAlign: 'center', fontSize: 13, color: 'var(--ink2)' }}>
+        Already have an account?{' '}
+        <Link to="/login" style={{ color: 'var(--indigo)', fontWeight: 700, textDecoration: 'none' }}>Sign in</Link>
+      </p>
     </div>
   );
 }

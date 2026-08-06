@@ -93,7 +93,15 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-button, input, textarea, select { font: inherit; }
+button, input, textarea, select {
+  font: inherit;
+  color: inherit;
+}
+
+option {
+  background-color: var(--surface);
+  color: var(--ink);
+}
 
 /* ─── Selection ──────────────────────────────────────────────────────────────── */
 ::selection { background: var(--emerald); color: #fff; }
