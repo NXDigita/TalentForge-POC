@@ -91,20 +91,20 @@ export default function ResultsPanel({
   ];
 
   return (
-    <div className="border-t border-slate-800 bg-slate-900/95 flex flex-col transition-all duration-200">
+    <div className="h-full flex flex-col border-t border-slate-800 bg-slate-900 select-none overflow-hidden transition-all duration-200">
       {/* Header Bar */}
-      <div className="flex items-center justify-between border-b border-slate-800 px-4 py-2 bg-slate-900 select-none">
+      <div className="flex items-center justify-between border-b border-slate-800 px-4 py-2.5 bg-slate-900 shrink-0 select-none">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="flex items-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition"
+            className="flex items-center gap-2 text-xs font-bold text-slate-200 hover:text-white transition"
           >
-            <Terminal className="h-4 w-4 text-brand-400" />
-            <span>Execution Terminal & Score Proof</span>
+            <Terminal className="h-4 w-4 text-emerald-400" />
+            <span className="font-mono tracking-tight">Execution Terminal & Score Proof</span>
             {isCollapsed ? (
-              <ChevronUp className="h-3.5 w-3.5 text-slate-500" />
+              <ChevronUp className="h-3.5 w-3.5 text-slate-400" />
             ) : (
-              <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+              <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
             )}
           </button>
         </div>
@@ -151,7 +151,7 @@ export default function ResultsPanel({
 
       {/* Collapsible Body */}
       {!isCollapsed && (
-        <div className="h-64 overflow-y-auto p-4 font-mono text-xs space-y-4 bg-slate-950/90">
+        <div className="flex-1 min-h-0 overflow-y-auto p-5 font-mono text-xs space-y-5 bg-slate-950/95">
           {/* State UI 1: COMPILE_ERROR */}
           {errorCode === 'COMPILE_ERROR' && (
             <div className="rounded-xl border border-red-500/40 bg-red-950/20 p-4 space-y-3 font-sans">

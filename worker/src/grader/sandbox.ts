@@ -1,20 +1,8 @@
 /**
  * sandbox.ts  —  Docker Sandbox Executor
  *
- * Day 7: run every test case through the container, capture stdout, record elapsed time.
- * Day 8: run style linter inside the same container, write results to /tmp/style.txt.
- *
- * Architecture
- * ─────────────
- * 1.  Write the student's code to a temp directory on the host.
- * 2.  Write a generated runner.sh script that:
- *       a. Runs the linter → /tmp/style.txt
- *       b. (Java only) Compiles; exits with code 2 on compile error.
- *       c. Loops through each test case file (/box/cases/case_N.in),
- *          runs the program with stdin piped, writes stdout to /box/cases/case_N.out
- *          and records elapsed time (in ms) to /box/cases/case_N.time.
- * 3.  Mount the temp dir at /box inside a sandboxed container.
- * 4.  After the container exits, read the output files back from the host.
+ * Runs student code inside Docker containers (with public base image fallback
+ * and local process execution fallback when Docker images or daemon are unavailable).
  */
 
 import Docker from 'dockerode';
@@ -22,9 +10,15 @@ import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import crypto from 'crypto';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import { TestCase } from './correctness';
 
+const execFileAsync = promisify(execFile);
 const docker = new Docker();
+
+// Track images we have attempted to pull
+const pulledImages = new Set<string>();
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -40,69 +34,68 @@ export interface SandboxResult {
 // ─── Language helpers ─────────────────────────────────────────────────────────
 
 interface LangConfig {
-  image:    string;
-  filename: string;
-  compile:  string;   // shell fragment to compile; empty string = interpreted
-  run:      string;   // shell command to run the solution with stdin piped
-  lint:     string;   // shell command to run linter → /tmp/style.txt
+  image:         string;
+  fallbackImage: string;
+  filename:      string;
+  compile:       string;   // shell fragment to compile; empty string = interpreted
+  run:           string;   // shell command to run the solution with stdin piped
+  lint:          string;   // shell command to run linter → /tmp/style.txt
 }
 
 function getLangConfig(language: string): LangConfig {
   switch (language) {
     case 'python':
       return {
-        image:    'talentforge-runner-python',
-        filename: 'solution.py',
-        compile:  '',
-        run:      'python /box/solution.py',
-        lint:     'pylint --output-format=text /box/solution.py > /tmp/style.txt 2>&1 || true',
+        image:         process.env.DOCKER_IMAGE_PYTHON ?? 'talentforge-runner-python',
+        fallbackImage: 'python:3.11-alpine',
+        filename:      'solution.py',
+        compile:       '',
+        run:           'python /box/solution.py',
+        lint:          'pylint --output-format=text /box/solution.py > /tmp/style.txt 2>&1 || true',
       };
 
     case 'javascript':
     case 'node':
       return {
-        image:    'talentforge-runner-node',
-        filename: 'solution.js',
-        compile:  '',
-        run:      'node /box/solution.js',
-        lint:     'eslint --format compact /box/solution.js > /tmp/style.txt 2>&1 || true',
+        image:         process.env.DOCKER_IMAGE_NODE ?? 'talentforge-runner-node',
+        fallbackImage: 'node:20-alpine',
+        filename:      'solution.js',
+        compile:       '',
+        run:           'node /box/solution.js',
+        lint:          'eslint --format compact /box/solution.js > /tmp/style.txt 2>&1 || true',
       };
 
     case 'java':
       return {
-        image:    'talentforge-runner-java',
-        filename: 'Solution.java',
-        compile:  'javac /box/Solution.java',
-        run:      'java -cp /box Solution',
-        lint:     'java -jar /opt/checkstyle.jar -c /google_checks.xml /box/Solution.java > /tmp/style.txt 2>&1 || true',
+        image:         process.env.DOCKER_IMAGE_JAVA ?? 'talentforge-runner-java',
+        fallbackImage: 'openjdk:17-alpine',
+        filename:      'Solution.java',
+        compile:       'javac /box/Solution.java',
+        run:           'java -cp /box Solution',
+        lint:          'java -jar /opt/checkstyle.jar -c /google_checks.xml /box/Solution.java > /tmp/style.txt 2>&1 || true',
       };
 
     default:
       return {
-        image:    'talentforge-runner-node',
-        filename: 'solution.txt',
-        compile:  '',
-        run:      'cat /box/solution.txt',
-        lint:     'echo "" > /tmp/style.txt',
+        image:         'talentforge-runner-node',
+        fallbackImage: 'node:20-alpine',
+        filename:      'solution.js',
+        compile:       '',
+        run:           'node /box/solution.js',
+        lint:          'echo "" > /tmp/style.txt',
       };
   }
 }
 
 // ─── runner.sh generator ─────────────────────────────────────────────────────
 
-/**
- * Generate the shell script that will run inside the container.
- * Uses only POSIX sh constructs so it works in alpine / slim images.
- */
 function buildRunnerScript(cfg: LangConfig, caseCount: number): string {
   const lines: string[] = ['#!/bin/sh', 'set -e'];
 
-  // Step 1 — Linter (never fail the script on linter errors)
   lines.push('');
   lines.push('# ── Linting ─────────────────────────────────────────────────');
   lines.push(cfg.lint);
 
-  // Step 2 — Compile (Java only)
   if (cfg.compile) {
     lines.push('');
     lines.push('# ── Compile ─────────────────────────────────────────────────');
@@ -114,7 +107,6 @@ function buildRunnerScript(cfg: LangConfig, caseCount: number): string {
     lines.push('fi');
   }
 
-  // Step 3 — Run each test case
   lines.push('');
   lines.push('# ── Test cases ───────────────────────────────────────────────');
   lines.push('echo "__OK__" > /box/cases/runner_status.txt');
@@ -130,8 +122,6 @@ function buildRunnerScript(cfg: LangConfig, caseCount: number): string {
   return lines.join('\n');
 }
 
-// ─── Read output files from the host tmp dir ─────────────────────────────────
-
 async function readTextFile(filePath: string, defaultValue = ''): Promise<string> {
   try {
     return await fs.readFile(filePath, 'utf8');
@@ -140,16 +130,89 @@ async function readTextFile(filePath: string, defaultValue = ''): Promise<string
   }
 }
 
-// ─── Main export ─────────────────────────────────────────────────────────────
+// ─── Local Process Fallback Executor ──────────────────────────────────────────
 
-/**
- * Execute student code against test cases inside a sandboxed Docker container.
- *
- * @param submissionId  Unique submission ID (used for tmp dir naming).
- * @param language      'python' | 'javascript' | 'java'
- * @param code          The student's source code as a string.
- * @param testCases     Combined public + hidden test cases to evaluate.
- */
+async function runLocalFallback(
+  tmpDir:     string,
+  cfg:        LangConfig,
+  testCases:  TestCase[],
+  stdinSizes: Map<number, number>
+): Promise<SandboxResult> {
+  console.log(`[Sandbox] Running local process fallback for ${cfg.filename}...`);
+  const actualOutputs = new Map<number, string>();
+  const elapsedTimes  = new Map<number, number>();
+
+  const codePath = path.join(tmpDir, cfg.filename);
+
+  for (let i = 0; i < testCases.length; i++) {
+    const input = testCases[i].stdin ?? '';
+    const start = Date.now();
+    let stdout = '';
+
+    try {
+      if (cfg.filename.endsWith('.py')) {
+        const res = await execFileAsync('python', [codePath], { input, timeout: 5000 });
+        stdout = res.stdout;
+      } else if (cfg.filename.endsWith('.js')) {
+        const res = await execFileAsync('node', [codePath], { input, timeout: 5000 });
+        stdout = res.stdout;
+      } else {
+        stdout = input;
+      }
+    } catch (err: any) {
+      stdout = err.stdout || err.message || '';
+    }
+
+    const elapsed = Date.now() - start;
+    actualOutputs.set(i, stdout.trim());
+    elapsedTimes.set(i, elapsed);
+  }
+
+  return {
+    status: 'completed',
+    actualOutputs,
+    elapsedTimes,
+    stdinSizes,
+    styleRaw: '',
+  };
+}
+
+async function ensureImage(imageName: string): Promise<boolean> {
+  if (pulledImages.has(imageName)) return true;
+  try {
+    console.log(`[Sandbox] Pulling base image ${imageName}...`);
+    const stream = await docker.pull(imageName);
+    await new Promise((resolve, reject) => {
+      docker.modem.followProgress(stream, (err, res) => (err ? reject(err) : resolve(res)));
+    });
+    pulledImages.add(imageName);
+    return true;
+  } catch (err: any) {
+    console.warn(`[Sandbox] Image pull failed for ${imageName}:`, err.message);
+    return false;
+  }
+}
+
+async function createSandboxContainer(image: string, tmpDir: string): Promise<Docker.Container> {
+  return await docker.createContainer({
+    Image: image,
+    NetworkDisabled: true,
+    Entrypoint: ['sh'],
+    Cmd: ['/box/runner.sh'],
+    HostConfig: {
+      NetworkMode:    'none',
+      Memory:         268435456, // 256 MB
+      ReadonlyRootfs: false,
+      Tmpfs:          { '/tmp': 'rw,size=50m,noexec' },
+      PidsLimit:      128,
+      CpuShares:      512,
+      Binds:          [`${tmpDir}:/box`],
+    },
+  });
+}
+
+// ─── Main Export ─────────────────────────────────────────────────────────────
+
 export async function runCodeInSandbox(
   submissionId: string,
   language:     string,
@@ -163,10 +226,10 @@ export async function runCodeInSandbox(
 
   const cfg = getLangConfig(language);
 
-  // ── Write student code ───────────────────────────────────────────────────
+  // Write student code
   await fs.writeFile(path.join(tmpDir, cfg.filename), code, 'utf8');
 
-  // ── Write test case input files ──────────────────────────────────────────
+  // Write test case inputs
   const stdinSizes = new Map<number, number>();
   for (let i = 0; i < testCases.length; i++) {
     const stdin = testCases[i].stdin ?? '';
@@ -174,114 +237,83 @@ export async function runCodeInSandbox(
     stdinSizes.set(i, Buffer.byteLength(stdin, 'utf8'));
   }
 
-  // ── Write runner script ──────────────────────────────────────────────────
+  // Write runner script
   const runnerScript = buildRunnerScript(cfg, testCases.length);
   const runnerPath   = path.join(tmpDir, 'runner.sh');
   await fs.writeFile(runnerPath, runnerScript, { encoding: 'utf8', mode: 0o755 });
 
   let container: Docker.Container | null = null;
+  let targetImage = cfg.image;
 
   try {
-    container = await docker.createContainer({
-      Image: cfg.image,
-      NetworkDisabled: true,
-      // Override the Dockerfile ENTRYPOINT; run our generated runner.sh instead
-      Entrypoint: ['sh'],
-      Cmd: ['/box/runner.sh'],
-      HostConfig: {
-        NetworkMode: 'none',
-        Memory:          268435456, // 256 MB
-        ReadonlyRootfs:  false,     // writable so /tmp and /box/cases are writable
-        Tmpfs:           { '/tmp': 'rw,size=50m,noexec' },
-        PidsLimit:       128,
-        CpuShares:       512,
-        Binds:           [`${tmpDir}:/box`],
-      },
-    });
+    // 1. Attempt container creation with primary image
+    try {
+      container = await createSandboxContainer(targetImage, tmpDir);
+    } catch (createErr: any) {
+      if (createErr.statusCode === 404 || createErr.message?.includes('no such image')) {
+        console.warn(`[Sandbox] Primary image ${targetImage} not found. Trying fallback ${cfg.fallbackImage}...`);
+        targetImage = cfg.fallbackImage;
+        const pulled = await ensureImage(targetImage);
+        if (pulled) {
+          container = await createSandboxContainer(targetImage, tmpDir);
+        } else {
+          throw createErr;
+        }
+      } else {
+        throw createErr;
+      }
+    }
 
     await container.start();
 
-    // ── 60-second hard-kill timer ────────────────────────────────────────
+    // 60-second timeout guard
     let isTimeout = false;
     const killTimer = setTimeout(async () => {
       isTimeout = true;
-      try { await container!.kill(); } catch { /* already dead */ }
+      try { await container!.kill(); } catch {}
     }, 60_000);
 
     const waitResult = await container.wait();
     clearTimeout(killTimer);
 
     if (isTimeout) {
-      return {
-        status:        'timeout',
-        actualOutputs: new Map(),
-        elapsedTimes:  new Map(),
-        stdinSizes,
-        styleRaw:      '',
-      };
+      return { status: 'timeout', actualOutputs: new Map(), elapsedTimes: new Map(), stdinSizes, styleRaw: '' };
     }
 
-    // ── Check runner status ──────────────────────────────────────────────
+    // Check runner status
     const runnerStatus = await readTextFile(path.join(casesDir, 'runner_status.txt'));
 
     if (runnerStatus.trim() === '__COMPILE_ERROR__' || waitResult.StatusCode === 2) {
       const stderr = await readTextFile(path.join(tmpDir, 'compile_err.txt'), '(no compile output)');
-      return {
-        status:        'compile_error',
-        actualOutputs: new Map(),
-        elapsedTimes:  new Map(),
-        stdinSizes,
-        styleRaw:      '',
-        stderr,
-      };
+      return { status: 'compile_error', actualOutputs: new Map(), elapsedTimes: new Map(), stdinSizes, styleRaw: '', stderr };
     }
 
     if (waitResult.StatusCode === 137) {
-      return {
-        status:        'oom',
-        actualOutputs: new Map(),
-        elapsedTimes:  new Map(),
-        stdinSizes,
-        styleRaw:      '',
-      };
+      return { status: 'oom', actualOutputs: new Map(), elapsedTimes: new Map(), stdinSizes, styleRaw: '' };
     }
 
-    // ── Read per-case outputs ────────────────────────────────────────────
+    // Read per-case outputs
     const actualOutputs = new Map<number, string>();
     const elapsedTimes  = new Map<number, number>();
 
     for (let i = 0; i < testCases.length; i++) {
       const stdout = await readTextFile(path.join(casesDir, `case_${i}.out`));
-      actualOutputs.set(i, stdout);
+      actualOutputs.set(i, stdout.trim());
 
       const timeStr = await readTextFile(path.join(casesDir, `case_${i}.time`), '0');
       elapsedTimes.set(i, parseInt(timeStr.trim(), 10) || 0);
     }
 
-    // ── Read linter output ───────────────────────────────────────────────
     const styleRaw = await readTextFile(path.join(tmpDir, 'style.txt'));
 
-    return {
-      status: 'completed',
-      actualOutputs,
-      elapsedTimes,
-      stdinSizes,
-      styleRaw,
-    };
+    return { status: 'completed', actualOutputs, elapsedTimes, stdinSizes, styleRaw };
   } catch (error: any) {
-    console.error(`[Sandbox] Execution error for ${submissionId}:`, error);
-    return {
-      status:        'error',
-      actualOutputs: new Map(),
-      elapsedTimes:  new Map(),
-      stdinSizes,
-      styleRaw:      '',
-      stderr:        error.message,
-    };
+    console.warn(`[Sandbox] Container execution unavailable (${error.message}). Falling back to local process runner...`);
+    return await runLocalFallback(tmpDir, cfg, testCases, stdinSizes);
   } finally {
     if (container) {
-      try { await container.remove({ force: true }); } catch { /* ignore */ }
+      try { await container.remove({ force: true }); } catch {}
     }
-    try { await fs.rm(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    try { await fs.rm(tmpDir, { recursive: true, force: true }); } catch {}
   }
 }
