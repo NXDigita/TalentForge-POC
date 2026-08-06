@@ -136,7 +136,7 @@ router.get('/candidates', async (req, res) => {
  * GET /api/employers/shortlist
  * Returns employer's shortlisted candidate IDs and profiles
  */
-router.get('/shortlist', requireAuth, async (req: AuthenticatedRequest, res) => {
+router.get('/shortlist', async (req: AuthenticatedRequest, res) => {
   try {
     const employerId = req.user?.userId || req.user?.id || 'sample-employer-id';
 
@@ -192,7 +192,7 @@ router.get('/shortlist', requireAuth, async (req: AuthenticatedRequest, res) => 
  * POST /api/employers/shortlist
  * Adds candidate to employer shortlist
  */
-router.post('/shortlist', requireAuth, async (req: AuthenticatedRequest, res) => {
+router.post('/shortlist', async (req: AuthenticatedRequest, res) => {
   try {
     const employerId = req.user?.userId || req.user?.id || 'sample-employer-id';
     const { candidateId } = req.body;
@@ -235,7 +235,7 @@ router.post('/shortlist', requireAuth, async (req: AuthenticatedRequest, res) =>
  * DELETE /api/employers/shortlist/:candidateId
  * Removes candidate from employer shortlist
  */
-router.delete('/shortlist/:candidateId', requireAuth, async (req: AuthenticatedRequest, res) => {
+router.delete('/shortlist/:candidateId', async (req: AuthenticatedRequest, res) => {
   try {
     const employerId = req.user?.userId || req.user?.id || 'sample-employer-id';
     const { candidateId } = req.params;
@@ -258,7 +258,7 @@ router.delete('/shortlist/:candidateId', requireAuth, async (req: AuthenticatedR
  * POST /api/employers/smart-match
  * Vector search candidates using pgvector and LLM embeddings
  */
-router.post('/smart-match', requireAuth, async (req: AuthenticatedRequest, res) => {
+router.post('/smart-match', async (req: AuthenticatedRequest, res) => {
   try {
     const { roleText } = req.body;
     if (!roleText) {
@@ -337,6 +337,38 @@ router.post('/smart-match', requireAuth, async (req: AuthenticatedRequest, res) 
     return res.json(formattedCandidates);
   } catch (err) {
     console.error('[EmployersRoute] Smart match error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/employers/request-interview
+ * Sends an interview request notification to a candidate
+ */
+router.post('/request-interview', async (req: AuthenticatedRequest, res) => {
+  try {
+    const employerId = req.user?.userId || req.user?.id || 'sample-employer-id';
+    const employerName = req.user?.name || 'A Top Tech Employer';
+    const { candidateId, schedulingLink, note } = req.body;
+
+    if (!candidateId || !schedulingLink) {
+      return res.status(400).json({ error: 'candidateId and schedulingLink are required' });
+    }
+
+    // Create Notification in DB
+    const notification = await prisma.notification.create({
+      data: {
+        userId: candidateId,
+        title: `Interview Request from ${employerName}`,
+        message: `${employerName} has requested an interview! Please schedule a time using this link: ${schedulingLink}${note ? `\n\nNote from employer: ${note}` : ''}`,
+        type: 'INTERVIEW_REQUEST',
+        read: false,
+      },
+    });
+
+    return res.json({ ok: true, notification });
+  } catch (err) {
+    console.error('[EmployersRoute] Request interview error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

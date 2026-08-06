@@ -3,9 +3,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { Loader2, Github, Linkedin, Eye, EyeOff, Sparkles } from 'lucide-react';
-import api from '../services/api';
+import { useNavigate, Link } from 'react-router-dom';
+import { Loader2, Github, Linkedin, Eye, EyeOff } from 'lucide-react';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -30,17 +29,21 @@ function getRoleHome(email: string): string {
   return '/dashboard';
 }
 
+const DEMO_CREDS = [
+  { role: 'Student', email: 'student@college.edu', password: 'password123', color: '#059669' },
+  { role: 'Reviewer', email: 'reviewer@talentforge.in', password: 'Reviewer123!', color: '#4F46E5' },
+  { role: 'Employer', email: 'employer@talentforge.in', password: 'password123', color: '#F59E0B' },
+  { role: 'Admin', email: 'admin@talentforge.in', password: 'Admin123!', color: '#EF4444' },
+];
+
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const [apiError, setApiError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [githubLoading, setGithubLoading] = useState(false);
-  const [linkedinLoading, setLinkedinLoading] = useState(false);
 
-  const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
+  const { register, handleSubmit, setValue, formState: { errors } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
   });
 
@@ -57,10 +60,16 @@ export default function Login() {
     }
   };
 
+  const fillDemo = (email: string, password: string) => {
+    setValue('email', email);
+    setValue('password', password);
+    setApiError(null);
+  };
+
   const handleGitHubLogin = () => {
     const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID;
     if (!clientId || clientId === 'your_github_client_id') {
-      setApiError('GitHub OAuth is not configured. Use email/password login or add VITE_GITHUB_CLIENT_ID to your .env');
+      setApiError('GitHub OAuth not configured. Use email/password login.');
       return;
     }
     const redirectUri = encodeURIComponent(`${window.location.origin}/auth-callback?provider=github`);
@@ -70,7 +79,7 @@ export default function Login() {
   const handleLinkedInLogin = () => {
     const clientId = import.meta.env.VITE_LINKEDIN_CLIENT_ID;
     if (!clientId || clientId === 'your_linkedin_client_id') {
-      setApiError('LinkedIn OAuth is not configured. Use email/password login or add VITE_LINKEDIN_CLIENT_ID to your .env');
+      setApiError('LinkedIn OAuth not configured. Use email/password login.');
       return;
     }
     const redirectUri = encodeURIComponent(`${window.location.origin}/auth-callback?provider=linkedin`);
@@ -79,115 +88,108 @@ export default function Login() {
   };
 
   return (
-    <div className="mx-auto max-w-md font-sans">
-      {/* Glassmorphic card */}
-      <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl shadow-slate-200/50 dark:shadow-slate-950/60 p-8">
-        <div className="absolute -right-12 -top-12 h-44 w-44 rounded-full bg-brand-500/10 blur-3xl pointer-events-none" />
-        <div className="absolute -left-12 -bottom-12 h-44 w-44 rounded-full bg-purple-500/10 blur-3xl pointer-events-none" />
+    <div style={{ minHeight: '100vh', background: '#FBFBF9', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 16px', fontFamily: 'Inter,sans-serif' }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+        .login-input{width:100%;border:1px solid #D8DBD5;border-radius:10px;background:#fff;padding:10px 14px;font-size:14px;color:#111826;outline:none;transition:.15s;box-sizing:border-box}
+        .login-input:focus{border-color:#4F46E5;box-shadow:0 0 0 3px rgba(79,70,229,.1)}
+        .login-input.error{border-color:#EF4444}
+        .login-btn-primary{width:100%;background:#4F46E5;color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;gap:8px}
+        .login-btn-primary:hover{background:#4338CA}
+        .login-btn-primary:disabled{opacity:.5;cursor:not-allowed}
+        .login-btn-oauth{display:flex;align-items:center;justify-content:center;gap:8px;border-radius:10px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;transition:.15s;border:1px solid #D8DBD5;background:#fff;color:#111826}
+        .login-btn-oauth:hover{border-color:#9AA3AF;background:#F9FAFB}
+        .login-demo-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid #E7E9E5;borderRadius:8px;padding:6px 12px;font-size:11.5px;cursor:pointer;transition:.12s;background:#fff;fontFamily:'JetBrains Mono',monospace;color:#111826}
+        .login-demo-chip:hover{border-color:#9AA3AF;background:#F9FAFB}
+      `}</style>
 
-        <div className="relative space-y-6">
-          {/* Header */}
-          <div className="space-y-1.5">
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 dark:bg-brand-950/40 px-3 py-1 text-[11px] font-bold text-brand-600 dark:text-brand-400 border border-brand-200/50 dark:border-brand-800/40">
-              <Sparkles className="h-3 w-3" /> Verified Skill Proof Platform
-            </div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">Welcome back</h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Sign in to your TalentForge workspace</p>
+      {/* Back to Home */}
+      <div style={{ width: '100%', maxWidth: 440, marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', color: '#4B5563', fontSize: 13, fontWeight: 500 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg,#10B981,#059669)' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          </span>
+          <span style={{ fontFamily: 'Plus Jakarta Sans,sans-serif', fontWeight: 800, fontSize: 16, color: '#111826' }}>TalentForge</span>
+        </Link>
+        <Link to="/register" style={{ fontSize: 13, color: '#4B5563', fontWeight: 500, textDecoration: 'none' }}>
+          No account? <span style={{ color: '#4F46E5', fontWeight: 600 }}>Sign up</span>
+        </Link>
+      </div>
+
+      {/* Card */}
+      <div style={{ width: '100%', maxWidth: 440, background: '#fff', border: '1px solid #E7E9E5', borderRadius: 20, padding: 32, boxShadow: '0 1px 2px rgba(17,24,38,.04), 0 16px 40px -16px rgba(17,24,38,.12)' }}>
+
+        {/* Header */}
+        <div style={{ marginBottom: 28 }}>
+          <h1 style={{ fontFamily: 'Plus Jakarta Sans,sans-serif', fontWeight: 800, fontSize: 26, letterSpacing: '-.02em', color: '#111826', margin: 0 }}>Welcome back</h1>
+          <p style={{ fontSize: 14, color: '#4B5563', marginTop: 6 }}>Sign in to your TalentForge workspace</p>
+        </div>
+
+        {/* Error */}
+        {apiError && (
+          <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 10, padding: '12px 14px', fontSize: 13, color: '#DC2626', marginBottom: 20, fontWeight: 500 }}>
+            {apiError}
+          </div>
+        )}
+
+        {/* Form */}
+        <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: '#4B5563', marginBottom: 6, fontFamily: 'JetBrains Mono,monospace' }}>Email</label>
+            <input type="email" {...register('email')} className={`login-input${errors.email ? ' error' : ''}`} placeholder="you@college.edu" />
+            {errors.email && <p style={{ fontSize: 12, color: '#EF4444', marginTop: 4 }}>{errors.email.message}</p>}
           </div>
 
-          {/* Error Alert */}
-          {apiError && (
-            <div className="rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 p-3.5 text-xs font-semibold text-red-600 dark:text-red-400">
-              {apiError}
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: '#4B5563', marginBottom: 6, fontFamily: 'JetBrains Mono,monospace' }}>Password</label>
+            <div style={{ position: 'relative' }}>
+              <input type={showPassword ? 'text' : 'password'} {...register('password')} className={`login-input${errors.password ? ' error' : ''}`} placeholder="••••••••" style={{ paddingRight: 40 }} />
+              <button type="button" onClick={() => setShowPassword(p => !p)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#9AA3AF', padding: 0 }}>
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
             </div>
-          )}
-
-          {/* Email/Password Form */}
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Email Address</label>
-              <input
-                type="email"
-                {...register('email')}
-                className={`w-full rounded-xl border bg-slate-50/50 dark:bg-slate-950/50 px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 outline-none transition-all ${
-                  errors.email ? 'border-red-300 dark:border-red-700' : 'border-slate-200 dark:border-slate-800 focus:border-brand-500 dark:focus:border-brand-500'
-                }`}
-                placeholder="john@college.edu"
-              />
-              {errors.email && <p className="text-xs font-medium text-red-500">{errors.email.message}</p>}
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Password</label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  {...register('password')}
-                  className={`w-full rounded-xl border bg-slate-50/50 dark:bg-slate-950/50 px-3.5 py-2.5 pr-10 text-sm text-slate-900 dark:text-slate-100 outline-none transition-all ${
-                    errors.password ? 'border-red-300 dark:border-red-700' : 'border-slate-200 dark:border-slate-800 focus:border-brand-500 dark:focus:border-brand-500'
-                  }`}
-                  placeholder="••••••••"
-                />
-                <button type="button" onClick={() => setShowPassword(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition">
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              {errors.password && <p className="text-xs font-medium text-red-500">{errors.password.message}</p>}
-            </div>
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full rounded-xl bg-brand-600 py-3 text-sm font-bold text-white shadow-lg shadow-brand-500/25 hover:bg-brand-500 hover:shadow-brand-500/30 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-              {isSubmitting ? 'Signing in...' : 'Sign in'}
-            </button>
-          </form>
-
-          {/* Divider */}
-          <div className="relative flex items-center justify-center">
-            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100 dark:border-slate-800" /></div>
-            <span className="relative bg-white dark:bg-slate-900 px-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">or continue with</span>
+            {errors.password && <p style={{ fontSize: 12, color: '#EF4444', marginTop: 4 }}>{errors.password.message}</p>}
           </div>
 
-          {/* OAuth Buttons */}
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={handleGitHubLogin}
-              disabled={githubLoading}
-              className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-900 hover:text-white dark:hover:bg-slate-800 transition-all shadow-sm"
-            >
-              <Github className="h-4 w-4" /> GitHub
-            </button>
-            <button
-              type="button"
-              onClick={handleLinkedInLogin}
-              disabled={linkedinLoading}
-              className="flex items-center justify-center gap-2 rounded-xl border border-blue-200 dark:border-blue-900/50 bg-[#0A66C2] py-2.5 text-xs font-bold text-white hover:bg-[#004182] transition-all shadow-sm"
-            >
-              <Linkedin className="h-4 w-4" /> LinkedIn
-            </button>
-          </div>
+          <button type="submit" disabled={isSubmitting} className="login-btn-primary" style={{ marginTop: 4 }}>
+            {isSubmitting && <Loader2 size={16} className="animate-spin" />}
+            {isSubmitting ? 'Signing in...' : 'Sign in →'}
+          </button>
+        </form>
 
-          {/* Demo credentials hint */}
-          <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 p-3.5 space-y-1.5 text-[10px] text-slate-500 dark:text-slate-400">
-            <p className="font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Demo Credentials</p>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
-              <span className="font-semibold text-brand-500">Student:</span><span>student@college.edu / password123</span>
-              <span className="font-semibold text-amber-500">Reviewer:</span><span>reviewer@talentforge.in / Reviewer123!</span>
-              <span className="font-semibold text-purple-500">Employer:</span><span>employer@talentforge.in / password123</span>
-              <span className="font-semibold text-red-500">Admin:</span><span>admin@talentforge.in / Admin123!</span>
-            </div>
-          </div>
+        {/* Divider */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '24px 0', color: '#9AA3AF', fontSize: 11, fontFamily: 'JetBrains Mono,monospace', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.1em' }}>
+          <div style={{ flex: 1, borderTop: '1px solid #E7E9E5' }} />
+          or continue with
+          <div style={{ flex: 1, borderTop: '1px solid #E7E9E5' }} />
+        </div>
 
-          <p className="text-center text-xs text-slate-400">
-            No account?{' '}
-            <Link to="/register" className="font-bold text-brand-600 dark:text-brand-400 hover:underline">Create one free</Link>
-          </p>
+        {/* OAuth */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <button type="button" onClick={handleGitHubLogin} className="login-btn-oauth">
+            <Github size={16} /> GitHub
+          </button>
+          <button type="button" onClick={handleLinkedInLogin} className="login-btn-oauth" style={{ background: '#0A66C2', color: '#fff', borderColor: '#0A66C2' }}>
+            <Linkedin size={16} /> LinkedIn
+          </button>
+        </div>
+
+        {/* Demo Creds */}
+        <div style={{ marginTop: 28, padding: 16, background: '#F2F6F4', borderRadius: 12, border: '1px solid #E7E9E5' }}>
+          <div style={{ fontSize: 11, fontFamily: 'JetBrains Mono,monospace', fontWeight: 600, color: '#4B5563', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 12 }}>Demo accounts — click to fill</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {DEMO_CREDS.map(({ role, email, password, color }) => (
+              <button key={role} type="button" onClick={() => fillDemo(email, password)} className="login-demo-chip" style={{ textAlign: 'left', justifyContent: 'flex-start' }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                <span style={{ fontWeight: 600 }}>{role}</span>
+              </button>
+            ))}
+          </div>
+          <p style={{ fontSize: 11, color: '#9AA3AF', marginTop: 10, fontFamily: 'JetBrains Mono,monospace' }}>All passwords: password123 (or shown above)</p>
         </div>
       </div>
+
+      <p style={{ marginTop: 20, fontSize: 12, color: '#9AA3AF', fontFamily: 'JetBrains Mono,monospace' }}>© 2026 TalentForge · Proof over résumé inflation</p>
     </div>
   );
 }

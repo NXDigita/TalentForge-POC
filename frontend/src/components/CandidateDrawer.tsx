@@ -13,8 +13,11 @@ import {
   Sparkles,
   BarChart3,
   Bot,
+  CalendarPlus,
 } from 'lucide-react';
 import RadarChart from './RadarChart';
+import api from '../services/api';
+import { toast } from 'sonner';
 
 export interface CandidateData {
   id: string;
@@ -65,7 +68,38 @@ export default function CandidateDrawer({
   onClose,
   onToggleShortlist,
 }: CandidateDrawerProps) {
+  const [isInterviewModalOpen, setIsInterviewModalOpen] = useState(false);
+  const [schedulingLink, setSchedulingLink] = useState('');
+  const [interviewNote, setInterviewNote] = useState('');
+  const [isSendingInterview, setIsSendingInterview] = useState(false);
+
   if (!isOpen || !candidate) return null;
+
+  const handleSendInterviewRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!schedulingLink) {
+      toast.error('Scheduling link is required');
+      return;
+    }
+    
+    try {
+      setIsSendingInterview(true);
+      await api.post('/employers/request-interview', {
+        candidateId: candidate.id,
+        schedulingLink,
+        note: interviewNote,
+      });
+      toast.success(`Interview request sent to ${candidate.name}!`);
+      setIsInterviewModalOpen(false);
+      setSchedulingLink('');
+      setInterviewNote('');
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.response?.data?.error || 'Failed to send request');
+    } finally {
+      setIsSendingInterview(false);
+    }
+  };
 
   const traitScores = [
     { trait: 'Logical Reasoning', value: candidate.psychProfile.logical, fullMark: 100 },
@@ -115,6 +149,14 @@ export default function CandidateDrawer({
                     <Bookmark className="h-4 w-4" /> Shortlist Candidate
                   </>
                 )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsInterviewModalOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition shadow-md bg-indigo-600 text-white hover:bg-indigo-500"
+              >
+                <CalendarPlus className="h-4 w-4" /> Request Interview
               </button>
 
               <button
@@ -258,6 +300,65 @@ export default function CandidateDrawer({
           </div>
         </div>
       </div>
+
+      {/* Interview Request Modal */}
+      {isInterviewModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden text-slate-900 dark:text-slate-100">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-6 py-4 bg-slate-50 dark:bg-slate-950/50">
+              <h3 className="font-bold flex items-center gap-2">
+                <CalendarPlus className="h-5 w-5 text-indigo-500" /> Request Interview
+              </h3>
+              <button onClick={() => setIsInterviewModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSendInterviewRequest} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+                  Scheduling Link <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="url"
+                  required
+                  placeholder="e.g., https://calendly.com/your-name"
+                  value={schedulingLink}
+                  onChange={(e) => setSchedulingLink(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-4 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+                  Optional Note
+                </label>
+                <textarea
+                  placeholder={`Hi ${candidate.name}, we'd love to chat with you about your recent test...`}
+                  value={interviewNote}
+                  onChange={(e) => setInterviewNote(e.target.value)}
+                  rows={3}
+                  className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-4 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="pt-2 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsInterviewModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-sm font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSendingInterview}
+                  className="px-5 py-2 rounded-xl text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 transition flex items-center gap-2"
+                >
+                  {isSendingInterview ? 'Sending...' : 'Send Request'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

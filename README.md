@@ -2,7 +2,7 @@
 
 TalentForge is a performance-verified talent marketplace for engineering students. It replaces generic resumes with verified code proofs evaluated through high-fidelity sandbox simulations, automated behavioral psychometrics, expert human code reviews, and Polygon blockchain-verified ERC-721 badges.
 
-> **Demo POC** — Full RBAC across Student, Reviewer, Employer, and Admin roles with AI-generated problems, real-time grading, and candidate discovery.
+> **Demo POC** — Full RBAC across Student, Reviewer, Employer, and Admin roles with AI-generated problems, real-time grading, candidate discovery, public portfolio export, AI talent recommendations, and one-click interview scheduling.
 
 ---
 
@@ -56,6 +56,12 @@ npm run dev:worker
 npm run dev:frontend
 ```
 
+Or use the one-click launcher:
+```bash
+# Windows
+run-app.bat
+```
+
 | URL | Description |
 | :--- | :--- |
 | [http://localhost:5173](http://localhost:5173) | Frontend client |
@@ -76,36 +82,37 @@ Co-authored-by: NXDigita <nxdigita.official@gmail.com>
 TalentForge-POC/
 ├── backend/                  # Express.js + Prisma ORM + Socket.io + Sentry (Port 5001)
 │   ├── prisma/
-│   │   ├── schema.prisma     # User, Problem, Submission, Badge, Review, Notification schema
+│   │   ├── schema.prisma     # User, Problem, Submission, Badge, Review, Notification, Shortlist schema
 │   │   └── seed.ts           # 8 Problems + 4 user roles seeder
 │   └── src/
 │       ├── routes/
 │       │   ├── auth.ts       # Login, Register, /me, Refresh
-│       │   ├── student.ts    # Problems, Submissions, AI Generator, Notifications
+│       │   ├── student.ts    # Problems, Submissions, AI Generator, Notifications, AI Summary
 │       │   ├── reviews.ts    # Reviewer RBAC queue, Approve/Reject
-│       │   ├── employer.ts   # Candidate discovery, Shortlisting
-│       │   ├── admin.ts      # Admin operations
+│       │   ├── employers.ts  # Candidate discovery, Shortlisting, Interview Requests
+│       │   ├── public.ts     # Public profile endpoint (unauthenticated)
 │       │   └── verify.ts     # Badge verification + OG image
 │       └── app.ts            # Server entry + Redis Socket adapter + Sentry + rate limiting
 ├── frontend/                 # React 18 + Vite + TypeScript Client (Port 5173)
 │   └── src/
-│       ├── components/       # AppShell (RBAC nav), CopilotDrawer (Global AI Chat), RequireRole guard
+│       ├── components/       # AppShell (RBAC nav), CopilotDrawer (Global AI Chat), CandidateDrawer, RequireRole guard
 │       ├── context/          # AuthContext (role-aware), ThemeContext
 │       ├── pages/
-│       │   ├── Home.tsx            # Landing page v1: Hero, How-It-Works, Badge showcase
+│       │   ├── Home.tsx            # Landing page: Hero, How-It-Works, Feature Highlights, Badge Showcase
 │       │   ├── Dashboard.tsx       # Student dashboard
 │       │   ├── ProblemBoard.tsx    # 8 seeded + AI Problem Generator modal
 │       │   ├── ProblemDetail.tsx   # Monaco Editor + AI copilot
 │       │   ├── Assessment.tsx      # 20-question psychometric + domain assessments
 │       │   ├── Profile.tsx         # Role-tailored profiles (Student/Reviewer/Employer/Admin)
+│       │   ├── PublicProfile.tsx   # Public candidate profile (/p/:id) — PDF export, LinkedIn share
 │       │   ├── ReviewerPortal.tsx  # Review queue, Monaco read-only viewer, star rating
-│       │   ├── EmployerDiscover.tsx # Candidate discovery with TanStack Table
+│       │   ├── EmployerDiscover.tsx # Candidate discovery with TanStack Table + Smart Match AI
 │       │   ├── EmployerShortlist.tsx# Saved shortlist management
 │       │   ├── Leaderboard.tsx     # Ranked podium + trends
 │       │   ├── Submissions.tsx     # Attempt history + sparkline
 │       │   └── Guide.tsx           # Platform help & architecture guide
 │       └── services/
-│           └── api.ts        # All API calls including generateAIProblem()
+│           └── api.ts        # All API calls
 ├── worker/                   # BullMQ Sandboxed Autograder & Container Runner
 │   └── src/grader/           # correctness.ts, complexity.ts, style.ts, precheck.ts
 ├── load-test/                # Artillery 20-concurrent submission load test (p95 < 5s)
@@ -121,9 +128,9 @@ TalentForge implements strict RBAC. Each role sees only its authorized screens a
 
 | Role | Home Route | Access |
 | :--- | :--- | :--- |
-| **STUDENT** | `/dashboard` | Problems, Submissions, Leaderboard, Assessment, Profile, Guide |
+| **STUDENT** | `/dashboard` | Problems, Submissions, Leaderboard, Assessment, Profile, Guide, Public Profile |
 | **REVIEWER** | `/reviewer` | Review Queue, Read-only Monaco Code Viewer, Approve/Reject |
-| **EMPLOYER** | `/discover` | Candidate Discovery Table, Shortlist, Profile |
+| **EMPLOYER** | `/discover` | Candidate Discovery, Candidate Inspect Drawer, Shortlist, Interview Requests, Profile |
 | **ADMIN** | `/admin` | Platform health, all routes |
 
 `RequireRole.tsx` guards enforce role-specific route access. Unauthorized URL navigation redirects to the role's home page.
@@ -143,7 +150,11 @@ TalentForge implements strict RBAC. Each role sees only its authorized screens a
 - **Leaderboard**: Paginated podium (Gold/Silver/Bronze) with 7-day score trends.
 - **Psychometric Assessment**: 20-question behavioral quiz + domain knowledge test with a 5-trait radar chart.
 - **GitHub Integration**: Automated fetching of public repos, followers, and account age to calculate a GitHub Score.
-- **AI Talent Profile**: A comprehensive 9-tab profile featuring an AI-extracted Skills Radar Chart (powered by pgvector), strengths chips, GitHub/Social links, and a public/private recruiter visibility toggle.
+- **AI Talent Profile**: A comprehensive profile featuring verified skills, resume parsing (live on every page visit), GitHub/Social links, and a public/private recruiter visibility toggle.
+- **AI Executive Recommendation**: On-demand AI-generated executive summary written from resume, skills, badges, and tier — stored in DB and displayed on every profile visit without re-invoking the AI model.
+- **Public Portfolio** (`/p/:id`): A beautifully formatted, shareable public profile page with verified skills, badges, AI recommendation, and portfolio links.
+- **PDF Export**: Print-optimized CSS allows the public profile to be exported as a professional PDF resume directly from the browser.
+- **LinkedIn Share**: Pre-fills a LinkedIn post with the profile URL and verification hashtags for easy one-click sharing.
 
 ### 🔍 Reviewer Workflow
 - **Review Queue**: `GET /reviews/queue` — oldest `AI_VERIFIED` submissions first.
@@ -153,7 +164,9 @@ TalentForge implements strict RBAC. Each role sees only its authorized screens a
 
 ### 🏢 Employer Workflow
 - **Candidate Discovery** (`/discover`): TanStack Table with sortable aggregate score, badge toggle, min-score slider, language filter.
-- **Candidate Drawer**: Comprehensive Profile (education, social links, verified skills), 4-part Aggregate Score Breakdown Tooltip (Profile 15% + GitHub 10% + Code 50% + Psychometric 25%), Psychometric Radar, best code sample, Shortlist button.
+- **Candidate Inspect Drawer**: Comprehensive profile (education, social links, verified skills), 4-part Aggregate Score Breakdown Tooltip (Profile 15% + GitHub 10% + Code 50% + Psychometric 25%), Psychometric Radar Chart, and best code sample inspection.
+- **One-Click Interview Scheduler**: Employers can click "Request Interview" inside the drawer, enter a Calendly or calendar scheduling link with an optional note, and instantly send an in-app notification to the student's dashboard.
+- **Smart Match AI** (`/discover`): Paste a job description and let the AI rank candidates by skill fit.
 - **Shortlist Page** (`/shortlist`): Saved candidates with remove action.
 - **Profile Visibility**: Code samples only shown if `profilePublic=true`.
 
@@ -186,7 +199,9 @@ AI is used for:
 - **Problem Generation**: `POST /api/students/problems/generate-ai` creates new problems from topics
 - **AI Feedback**: `POST /api/students/feedback/format` — 3-bullet coaching bullets
 - **AI Copilot**: Monaco sidebar chat for in-editor coding assistance
+- **AI Executive Recommendation**: `POST /api/students/profile/ai-summary` — generates & persists a professional candidate summary (runs once, cached in DB)
 - **Learning Path**: Personalized study milestones from psychometric results
+- **Smart Match**: `POST /api/employers/evaluate-match` — compares JD against candidate profiles
 
 ---
 
@@ -204,20 +219,27 @@ AI is used for:
 | Method | Endpoint | Description | Auth |
 | :--- | :--- | :--- | :--- |
 | `GET` | `/api/students/problems` | Problem catalog (8 seeded + AI generated) | No |
-| `GET` | `/api/students/problems/:slug` | Single problem details (auto-synthesizes AI slugs) | No |
+| `GET` | `/api/students/problems/:slug` | Single problem details | No |
 | `POST` | `/api/students/problems/generate-ai` | AI generate new problem with hidden test cases | No |
-| `GET` | `/api/students/problems/:id/presigned` | MinIO S3 PUT presigned URL for code upload | Yes |
 | `POST` | `/api/students/problems/:id/submit` | Enqueue code submission | Yes |
 
-### Student Data
+### Student Data & Profile
 | Method | Endpoint | Description | Auth |
 | :--- | :--- | :--- | :--- |
+| `GET` | `/api/students/profile` | Full student profile including `aiSummary` | Yes |
+| `PUT` | `/api/students/profile` | Update profile data | Yes |
+| `POST` | `/api/students/profile/ai-summary` | Generate & persist AI executive recommendation | Yes |
+| `POST` | `/api/students/profile/parse-resume` | Upload and AI-parse PDF resume | Yes |
 | `GET` | `/api/students/submissions` | Submission history + scores | Yes |
 | `GET` | `/api/students/leaderboard` | Paginated rankings + podium | Yes |
-| `GET` | `/api/students/notifications` | Notification bell — unread count | Yes |
+| `GET` | `/api/students/notifications` | Notification bell — unread count + messages | Yes |
 | `POST` | `/api/students/feedback/format` | AI 3-bullet coaching feedback | No |
 | `POST` | `/api/students/assessment` | Submit psychometric answers | Yes |
-| `GET` | `/api/students/assessment/results/:id` | Get psychometric score + radar | Yes |
+
+### Public Profile
+| Method | Endpoint | Description | Auth |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/public/profile/:id` | Publicly accessible candidate profile | No |
 
 ### AI Copilot & Embedding
 | Method | Endpoint | Description | Auth |
@@ -234,9 +256,12 @@ AI is used for:
 ### Employer Discovery
 | Method | Endpoint | Description | Auth |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/candidates` | Discover candidates `?minScore=&badge=&language=` | EMPLOYER |
-| `POST` | `/api/shortlist` | Shortlist a candidate | EMPLOYER |
-| `DELETE` | `/api/shortlist/:id` | Remove from shortlist | EMPLOYER |
+| `GET` | `/api/employers/candidates` | Discover candidates `?minScore=&badge=&language=` | EMPLOYER |
+| `GET` | `/api/employers/shortlist` | Get shortlisted candidates | EMPLOYER |
+| `POST` | `/api/employers/shortlist` | Shortlist a candidate | EMPLOYER |
+| `DELETE` | `/api/employers/shortlist/:id` | Remove from shortlist | EMPLOYER |
+| `POST` | `/api/employers/request-interview` | Send interview request notification to candidate | EMPLOYER |
+| `POST` | `/api/employers/evaluate-match` | AI match score against job description | EMPLOYER |
 
 ### Verification
 | Method | Endpoint | Description | Auth |
@@ -293,6 +318,21 @@ User submits code
 [7] Reviewer Queue → APPROVE → EXPERT_VERIFIED + Polygon ERC-721 NFT
                    → REJECT  → Badge revoked + Notification
 ```
+
+---
+
+## 🆕 Recent Updates (v1.1)
+
+| Feature | Description |
+| :--- | :--- |
+| **Public Portfolio Page** | `/p/:id` — shareable, print-optimized public profile with verified skills, AI recommendation, badges, and resume data |
+| **PDF Export** | Print-to-PDF from the public profile page using browser's native print dialog |
+| **LinkedIn Share (Pre-filled)** | Opens a pre-filled LinkedIn post with the profile link and TalentForge hashtags |
+| **AI Executive Recommendation** | AI-generated professional summary cached in DB — only generated once, displayed on every profile visit |
+| **Resume Live Parsing** | Resume tab in profile shows parsed data every page visit without re-uploading |
+| **One-Click Interview Scheduler** | Employers can send a Calendly/calendar link to any candidate via in-app notification directly from the Candidate Inspect Drawer |
+| **Smart Match AI** | Employer can paste a Job Description and get AI-ranked candidate match scores |
+| **Aggregate Score Tooltip** | Hover on any candidate's score in the drawer to see the full formula breakdown (Profile 15% + GitHub 10% + Code 50% + Assessment 25%) |
 
 ---
 

@@ -73,7 +73,23 @@ const FAQS: FAQItem[] = [
     answer:
       'The Talent Profile goes beyond standard resumes by generating an AI-Assessed Skills Radar. A nightly BullMQ worker processes updated profiles using the active LLM to extract a structured SkillScore array. The profile text is also converted into a 1536-dimensional vector embedding stored securely using PostgreSQL\'s pgvector extension. Employers can discover candidates through vector similarity matching.',
   },
+  {
+    question: 'How does the AI Executive Recommendation work?',
+    answer:
+      'On the private profile page, students can click "Generate AI Summary" in the AI Executive Recommendation section. This calls POST /api/students/profile/ai-summary, which feeds all the candidate\'s verified badges, skills, tier, GitHub stats, and submission count into the active AI model. The AI writes a 2–3 sentence professional executive summary as if written by a recruiter. This summary is saved in the database (aiSummary field on the User model) and shown on every subsequent profile visit — no need to re-invoke the AI.',
+  },
+  {
+    question: 'What is the Public Portfolio page and how do I share it?',
+    answer:
+      'Every student gets a shareable public URL at /p/:userId. The public profile displays the AI Executive Recommendation, verified skill badges, claimed skills, education, and external links — all viewable without login. Students can export it as a PDF resume directly from the browser (File → Print → Save as PDF). The "Share to LinkedIn" button opens a pre-filled LinkedIn post with the profile URL and #TalentForge #VerifiedSkills hashtags.',
+  },
+  {
+    question: 'How does the One-Click Interview Scheduler work?',
+    answer:
+      'When an employer finds a strong candidate in the Candidate Inspect Drawer, they click the "Request Interview" button in the drawer header. A modal opens prompting for a scheduling link (e.g., Calendly or Google Calendar URL) and an optional personalized note. On submit, POST /api/employers/request-interview creates a Notification record in the database for that student. The student sees it immediately in their top-right bell icon with the full scheduling link and employer note.',
+  },
 ];
+
 
 const ROLES = [
   {
@@ -84,7 +100,7 @@ const ROLES = [
     email: 'student@college.edu',
     password: 'password123',
     home: '/dashboard',
-    features: ['Problem Board & Monaco Editor', 'AI Problem Generator', 'Sandbox Autograding', 'Psychometric Assessment', 'Notification Bell', '9-Tab Profile Portfolio'],
+    features: ['Problem Board & Monaco Editor', 'AI Problem Generator', 'Sandbox Autograding', 'Psychometric Assessment', 'Notification Bell', 'AI Executive Recommendation', 'Public Portfolio & PDF Export', 'LinkedIn Share (Pre-filled)', '9-Tab Profile Portfolio'],
   },
   {
     role: 'Reviewer',
@@ -104,7 +120,7 @@ const ROLES = [
     email: 'employer@talentforge.in',
     password: 'password123',
     home: '/discover',
-    features: ['TanStack Candidate Table', 'Score / Badge / Language Filters', 'Candidate Drawer with Radar', 'Code Sample Viewer', 'Shortlist Management'],
+    features: ['TanStack Candidate Table', 'Score / Badge / Language Filters', 'Candidate Inspect Drawer with Radar', 'Code Sample Viewer', 'One-Click Interview Scheduler', 'Smart Match AI (JD → Candidate)', 'Shortlist Management'],
   },
   {
     role: 'Admin',
