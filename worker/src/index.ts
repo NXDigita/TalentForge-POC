@@ -68,24 +68,26 @@ interface ProblemCasesResponse {
 const redisUrl   = process.env.REDIS_URL ?? 'redis://:redis_dev_secret@localhost:6380';
 const connection = new IORedis(redisUrl, {
   maxRetriesPerRequest: null,
-  enableOfflineQueue:   false,
+  enableOfflineQueue:   true,
+  keepAlive:            10000,
   retryStrategy: (times) => {
-    if (times > 3) {
-      console.warn('[Worker] Redis unreachable after 3 retries — grading jobs will queue once Redis is available.');
-      return null; // Stop retrying (ioredis will emit error once, then stop)
-    }
-    return Math.min(times * 500, 2000); // backoff: 500ms, 1000ms, 1500ms
+    return Math.min(times * 200, 3000); // Continuous backoff retry (never return null to avoid ECONNABORTED)
   },
 });
 
-connection.on('error', (err) => {
-  // Suppress noisy ECONNREFUSED floods — Redis being down is expected in local dev without Docker
-  if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
-    // Only log once (retryStrategy above limits retries)
+connection.on('error', (err: any) => {
+  // Suppress connection reset and unreachable socket errors during dev reloads
+  if (
+    err.code === 'ECONNREFUSED' ||
+    err.code === 'ENOTFOUND' ||
+    err.code === 'ECONNABORTED' ||
+    err.code === 'ECONNRESET'
+  ) {
     return;
   }
   console.error('[Worker] Redis client error:', err.message);
 });
+
 
 const emitter = new Emitter(connection);
 

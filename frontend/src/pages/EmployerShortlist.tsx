@@ -87,6 +87,7 @@ export default function EmployerShortlist() {
   const handleOpenDrawer = (c: CandidateData) => {
     setSelectedCandidate({
       ...c,
+      hiringStage: stageMap[c.id] ?? (c as any).hiringStage ?? 'SHORTLISTED',
       isShortlisted: true,
     });
     setIsDrawerOpen(true);
@@ -204,7 +205,14 @@ export default function EmployerShortlist() {
         candidate={selectedCandidate}
         onClose={() => setIsDrawerOpen(false)}
         onToggleShortlist={(candidateId) => handleRemoveShortlist(candidateId)}
+        onStageChange={(newStage) => {
+          if (selectedCandidate) {
+            setStageMap((prev) => ({ ...prev, [selectedCandidate.id]: newStage }));
+            setSelectedCandidate((prev) => prev ? { ...prev, hiringStage: newStage } : null);
+          }
+        }}
       />
     </div>
   );
+
 }

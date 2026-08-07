@@ -97,15 +97,16 @@ app.use('/internal',     internalRoutes);   // worker-only internal endpoints
 // Serve uploaded files (resumes, etc.) as static assets
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-app.get('/health', (req, res) => {
+app.get(['/health', '/api/health'], (req, res) => {
   let aiProvider = 'Unknown';
   try {
     aiProvider = AIAdapterFactory.getAdapter().getProviderName();
   } catch (e) {
     aiProvider = 'Error loading AI';
   }
-  res.json({ status: 'ok', aiProvider });
+  res.json({ status: 'ok', aiProvider, timestamp: new Date().toISOString() });
 });
+
 
 // ─── HTTP + Socket.io server ─────────────────────────────────────────────────
 const server = http.createServer(app);

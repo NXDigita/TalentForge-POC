@@ -40,6 +40,7 @@ export interface CandidateData {
   bestCodeSample: string;
   submittedAt?: string;
   isShortlisted?: boolean;
+  hiringStage?: HiringStage;
   college?: string;
   degree?: string;
   graduationYear?: string;
@@ -60,7 +61,8 @@ interface CandidateDrawerProps {
   isOpen: boolean;
   candidate: CandidateData | null;
   onClose: () => void;
-  onToggleShortlist: (candidateId: string) => void;
+  onToggleShortlist?: (candidateId: string) => void;
+  onStageChange?: (newStage: HiringStage) => void;
 }
 
 export default function CandidateDrawer({
@@ -183,11 +185,13 @@ export default function CandidateDrawer({
             {/* Customized Employer Horizontal Stepper */}
             <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-5 shadow-sm">
               <HiringStepper
-                currentStage={candidate.isShortlisted ? 'SHORTLISTED' : 'DISCOVERED'}
+                candidateId={candidate.id}
+                currentStage={candidate.hiringStage ?? (candidate.isShortlisted ? 'SHORTLISTED' : 'DISCOVERED')}
                 onStageChange={(newStage) => {
-                  toast.success(`Hiring pipeline status for ${candidate.name} updated to "${newStage}"`);
+                  onStageChange?.(newStage);
                 }}
               />
+
             </div>
 
             {/* Top Stat Cards */}
