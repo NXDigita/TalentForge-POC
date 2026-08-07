@@ -44,8 +44,13 @@ const employerRegisterSchema = z.object({
     email: z.string().email(),
     password: z.string().min(8),
     name: z.string().min(2),
-    company: z.string().optional(),
-  }).strict(),
+    company: z.string().min(1, 'Company name required'),
+    domain: z.enum(['cse', 'ece']).default('cse'),
+    companyWebsite: z.string().url().optional().or(z.literal('')),
+    bookingUrl: z.string().url().optional().or(z.literal('')),
+    targetRoles: z.string().optional(), // comma-separated: "Backend Engineer, React Dev"
+    minScoreThreshold: z.number().min(0).max(100).default(75),
+  }),
 });
 
 const githubOAuthSchema = z.object({
@@ -84,29 +89,60 @@ async function issueTokens(userId: string, role: string = 'STUDENT') {
 // ─── POST /api/auth/register-employer ───────────────────────────────────────
 router.post('/register-employer', validate(employerRegisterSchema), async (req, res) => {
   try {
-    const { email, password, name, company } = req.body;
+    const {
+      email, password, name, company,
+      domain = 'cse',
+      companyWebsite,
+      bookingUrl,
+      targetRoles,
+      minScoreThreshold = 75,
+    } = req.body;
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
       return res.status(409).json({ error: 'Account with this email already exists' });
     }
 
+    // Build links JSON: store companyWebsite + bookingUrl as structured link objects
+    const links: { label: string; url: string }[] = [];
+    if (companyWebsite) links.push({ label: 'Company Website', url: companyWebsite });
+    if (bookingUrl)     links.push({ label: 'Interview Booking', url: bookingUrl });
+
+    // Encode employer hiring criteria into aiSummary JSON blob for Smart Match
+    const employerMeta = JSON.stringify({
+      company,
+      targetRoles: targetRoles ? targetRoles.split(',').map((r: string) => r.trim()) : [],
+      domain,
+      minScoreThreshold,
+    });
+
     const hashedPassword = await bcrypt.hash(password, 12);
     const user = await prisma.user.create({
       data: {
         email,
         password: hashedPassword,
-        name: `${name}${company ? ` (${company})` : ''}`,
-        domain: 'cse',
+        name,                    // recruiter's own name, clean (no company suffix hack)
+        domain,
         role: 'EMPLOYER',
         tier: 'Enterprise',
+        college: company,        // reuse college field to store company name (no migration needed)
+        links: links.length ? links : undefined,
+        aiSummary: employerMeta, // Smart Match criteria stored here
       },
     });
 
     const tokens = await issueTokens(user.id, 'EMPLOYER');
 
     return res.status(201).json({
-      user: { id: user.id, email: user.email, name: user.name, role: 'EMPLOYER' },
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        company,
+        role: 'EMPLOYER',
+        domain,
+        bookingUrl: bookingUrl ?? null,
+      },
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
     });

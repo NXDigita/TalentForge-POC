@@ -24,6 +24,7 @@ const NotFound = lazy(() => import('./pages/NotFound'));
 const AuthCallback = lazy(() => import('./pages/AuthCallback'));
 const VerifyBadge = lazy(() => import('./pages/VerifyBadge'));
 const Settings = lazy(() => import('./pages/Settings'));
+const EmployerOnboarding = lazy(() => import('./pages/EmployerOnboarding'));
 import RequireAuth from './components/RequireAuth';
 import RequireRole from './components/RequireRole';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -75,6 +76,7 @@ function App() {
                 <Route element={<RequireRole allowedRoles={['EMPLOYER']} />}>
                   <Route path="/discover" element={<EmployerDiscover />} />
                   <Route path="/shortlist" element={<EmployerShortlist />} />
+                  <Route path="/employer-onboarding" element={<EmployerOnboarding />} />
                 </Route>
 
                 {/* Admin Routes */}

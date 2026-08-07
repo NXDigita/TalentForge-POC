@@ -4,18 +4,45 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Building2, User, Mail, Lock } from 'lucide-react';
 
-const registerSchema = z.object({
+// ─── Schemas ──────────────────────────────────────────────────────────────────
+
+const candidateSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
-  domain: z.enum(['cse', 'ece'] as const, {
-    message: 'Please select your domain (CSE or ECE)'
-  })
+  domain: z.enum(['cse', 'ece'] as const),
 });
 
-type RegisterForm = z.infer<typeof registerSchema>;
+const employerSchema = z.object({
+  name: z.string().min(2, 'Full name required'),
+  company: z.string().min(1, 'Company name is required'),
+  email: z.string().email('Invalid work email'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+});
+
+type CandidateForm = z.infer<typeof candidateSchema>;
+type EmployerForm = z.infer<typeof employerSchema>;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const inp = (error?: boolean) =>
+  `w-full rounded-xl border ${
+    error ? 'border-red-400' : 'border-slate-300 dark:border-slate-700'
+  } bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition`;
+
+const lbl = 'block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5';
+
+function FieldIcon({ icon }: { icon: React.ReactNode }) {
+  return (
+    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+      {icon}
+    </span>
+  );
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Register() {
   const { registerUser, setSession } = useAuth();
@@ -23,235 +50,263 @@ export default function Register() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEmployer, setIsEmployer] = useState(false);
-  const [companyName, setCompanyName] = useState('');
 
   const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:5001/api';
 
-  const { register, handleSubmit, formState: { errors } } = useForm<RegisterForm>({
-    resolver: zodResolver(registerSchema),
-    defaultValues: {
-      domain: 'cse'
-    }
+  const candidateForm = useForm<CandidateForm>({
+    resolver: zodResolver(candidateSchema),
+    defaultValues: { domain: 'cse' },
   });
 
-  const onSubmit = async (data: RegisterForm) => {
+  const employerForm = useForm<EmployerForm>({
+    resolver: zodResolver(employerSchema),
+  });
+
+  // ── Candidate submit ──────────────────────────────────────────────────────
+
+  const onCandidateSubmit = async (data: CandidateForm) => {
     try {
       setApiError(null);
       setIsSubmitting(true);
-      if (isEmployer) {
-        const res = await fetch(`${apiUrl}/auth/register-employer`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: data.name,
-            email: data.email,
-            password: data.password,
-            company: companyName || 'Enterprise Employer',
-          }),
-        });
-        const result = await res.json();
-        if (!res.ok) throw new Error(result.error || 'Employer registration failed');
-        if (result.accessToken && result.refreshToken) {
-          await setSession(result.accessToken, result.refreshToken);
-        }
-        navigate('/discover');
-      } else {
-        await registerUser(data.name, data.email, data.domain, data.password);
-        navigate('/dashboard');
-      }
+      await registerUser(data.name, data.email, data.domain, data.password);
+      navigate('/dashboard');
     } catch (err: any) {
-      console.error(err);
-      setApiError(err.message || err.response?.data?.error || 'Registration failed. Please try again.');
+      setApiError(err.message || 'Registration failed. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // ── Employer submit — simple registration only, onboarding comes next ─────
+
+  const onEmployerSubmit = async (data: EmployerForm) => {
+    try {
+      setApiError(null);
+      setIsSubmitting(true);
+      const res = await fetch(`${apiUrl}/auth/register-employer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: data.name,
+          company: data.company,
+          email: data.email,
+          password: data.password,
+        }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Employer registration failed');
+      if (result.accessToken && result.refreshToken) {
+        await setSession(result.accessToken, result.refreshToken);
+      }
+      // Redirect to employer-specific onboarding wizard
+      navigate('/employer-onboarding');
+    } catch (err: any) {
+      setApiError(err.message || 'Registration failed. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
   return (
-    <div style={{
-      width: '100%',
-      maxWidth: 440,
-      background: 'var(--surface)',
-      border: '1px solid var(--border)',
-      borderRadius: 20,
-      padding: 32,
-      boxShadow: '0 1px 2px rgba(17,24,38,.04), 0 16px 40px -16px rgba(17,24,38,.12)',
-      color: 'var(--ink)'
-    }}>
-      <style>{`
-        .reg-input {
-          width: 100%;
-          border: 1px solid var(--border);
-          border-radius: 10px;
-          background: var(--surface);
-          padding: 10px 14px;
-          font-size: 14px;
-          color: var(--ink);
-          outline: none;
-          transition: border-color .15s, box-shadow .15s;
-          box-sizing: border-box;
-        }
-        .reg-input:focus {
-          border-color: var(--indigo);
-          box-shadow: 0 0 0 3px rgba(79,70,229,.12);
-        }
-        .reg-input.error {
-          border-color: #EF4444;
-        }
-        .reg-label {
-          display: block;
-          font-size: 11px;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: .1em;
-          color: var(--ink2);
-          margin-bottom: 6px;
-          font-family: 'JetBrains Mono', monospace;
-        }
-        .reg-btn-primary {
-          width: 100%;
-          background: var(--indigo);
-          color: #ffffff;
-          border: none;
-          border-radius: 10px;
-          padding: 12px;
-          font-size: 14px;
-          font-weight: 700;
-          cursor: pointer;
-          transition: background .15s, transform .1s;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-        }
-        .reg-btn-primary:hover {
-          background: #4338CA;
-        }
-        .reg-btn-primary:disabled {
-          opacity: .5;
-          cursor: not-allowed;
-        }
-        .reg-tab {
-          flex: 1;
-          border-radius: 8px;
-          padding: 8px 12px;
-          font-size: 12px;
-          font-weight: 600;
-          border: none;
-          cursor: pointer;
-          transition: all .15s;
-        }
-      `}</style>
+    <div className="w-full max-w-md space-y-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-xl">
 
       {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 800, fontSize: 26, letterSpacing: '-.02em', color: 'var(--ink)', margin: 0 }}>Create account</h1>
-        <p style={{ fontSize: 13.5, color: 'var(--ink2)', marginTop: 6 }}>Get started with TalentForge verified skill proof</p>
+      <div>
+        <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+          Create account
+        </h1>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          Get started with TalentForge verified skill proof
+        </p>
       </div>
 
-      {/* Account Mode Selector */}
-      <div style={{ display: 'flex', background: 'var(--tint)', borderRadius: 12, padding: 4, marginBottom: 24, border: '1px solid var(--border)' }}>
-        <button
-          type="button"
-          onClick={() => setIsEmployer(false)}
-          className="reg-tab"
-          style={!isEmployer ? { background: 'var(--surface)', color: 'var(--ink)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { background: 'transparent', color: 'var(--ink3)' }}
-        >
-          Candidate Student
-        </button>
-        <button
-          type="button"
-          onClick={() => setIsEmployer(true)}
-          className="reg-tab"
-          style={isEmployer ? { background: 'var(--indigo)', color: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' } : { background: 'transparent', color: 'var(--ink3)' }}
-        >
-          Employer Recruiter
-        </button>
+      {/* Role Toggle */}
+      <div className="flex rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/60 p-1">
+        {([
+          { val: false, label: 'Candidate Student' },
+          { val: true,  label: 'Employer Recruiter' },
+        ] as const).map(({ val, label }) => (
+          <button
+            key={String(val)}
+            type="button"
+            onClick={() => { setIsEmployer(val); setApiError(null); }}
+            className={`flex-1 rounded-lg py-2 text-xs font-bold transition-all ${
+              isEmployer === val
+                ? val
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
-      {/* Error Alert */}
+      {/* API Error */}
       {apiError && (
-        <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 10, padding: '12px 14px', fontSize: 13, color: '#DC2626', marginBottom: 20, fontWeight: 500 }}>
+        <div className="rounded-xl border border-red-300 bg-red-50 dark:border-red-900 dark:bg-red-950/40 px-4 py-3 text-sm font-medium text-red-600 dark:text-red-400">
           {apiError}
         </div>
       )}
 
-      {/* Form */}
-      <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div>
-          <label className="reg-label">Full Name</label>
-          <input
-            {...register('name')}
-            className={`reg-input${errors.name ? ' error' : ''}`}
-            placeholder="Rohan Sharma"
-          />
-          {errors.name && (
-            <p style={{ fontSize: 12, color: '#EF4444', marginTop: 4 }}>{errors.name.message}</p>
-          )}
-        </div>
-
-        <div>
-          <label className="reg-label">Email Address</label>
-          <input
-            type="email"
-            {...register('email')}
-            className={`reg-input${errors.email ? ' error' : ''}`}
-            placeholder="rohan@college.edu"
-          />
-          {errors.email && (
-            <p style={{ fontSize: 12, color: '#EF4444', marginTop: 4 }}>{errors.email.message}</p>
-          )}
-        </div>
-
-        {isEmployer ? (
+      {/* ── CANDIDATE FORM ─────────────────────────────────────────────────── */}
+      {!isEmployer && (
+        <form onSubmit={candidateForm.handleSubmit(onCandidateSubmit)} className="space-y-4">
           <div>
-            <label className="reg-label">Company Name</label>
-            <input
-              type="text"
-              value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
-              className="reg-input"
-              placeholder="Acme Corp"
-            />
-          </div>
-        ) : (
-          <div>
-            <label className="reg-label">Domain Selection</label>
-            <select
-              {...register('domain')}
-              className={`reg-input${errors.domain ? ' error' : ''}`}
-            >
-              <option value="cse" style={{ background: 'var(--surface)', color: 'var(--ink)' }}>Computer Science Engineering (CSE)</option>
-              <option value="ece" style={{ background: 'var(--surface)', color: 'var(--ink)' }}>Electronics & Communication Engineering (ECE)</option>
-            </select>
-            {errors.domain && (
-              <p style={{ fontSize: 12, color: '#EF4444', marginTop: 4 }}>{errors.domain.message}</p>
+            <label className={lbl}>Full Name</label>
+            <div className="relative">
+              <FieldIcon icon={<User className="h-4 w-4" />} />
+              <input
+                {...candidateForm.register('name')}
+                className={inp(!!candidateForm.formState.errors.name) + ' pl-9'}
+                placeholder="Rohan Sharma"
+              />
+            </div>
+            {candidateForm.formState.errors.name && (
+              <p className="mt-1 text-xs text-red-500">{candidateForm.formState.errors.name.message}</p>
             )}
           </div>
-        )}
 
-        <div>
-          <label className="reg-label">Password</label>
-          <input
-            type="password"
-            {...register('password')}
-            className={`reg-input${errors.password ? ' error' : ''}`}
-            placeholder="••••••••"
-          />
-          {errors.password && (
-            <p style={{ fontSize: 12, color: '#EF4444', marginTop: 4 }}>{errors.password.message}</p>
-          )}
-        </div>
+          <div>
+            <label className={lbl}>Email Address</label>
+            <div className="relative">
+              <FieldIcon icon={<Mail className="h-4 w-4" />} />
+              <input
+                type="email"
+                {...candidateForm.register('email')}
+                className={inp(!!candidateForm.formState.errors.email) + ' pl-9'}
+                placeholder="rohan@college.edu"
+              />
+            </div>
+            {candidateForm.formState.errors.email && (
+              <p className="mt-1 text-xs text-red-500">{candidateForm.formState.errors.email.message}</p>
+            )}
+          </div>
 
-        <button className="reg-btn-primary" type="submit" disabled={isSubmitting}>
-          {isSubmitting && <Loader2 size={16} className="animate-spin" />}
-          {isSubmitting ? 'Creating account...' : 'Create account →'}
-        </button>
-      </form>
+          <div>
+            <label className={lbl}>Engineering Domain</label>
+            <select {...candidateForm.register('domain')} className={inp()}>
+              <option value="cse">Computer Science Engineering (CSE)</option>
+              <option value="ece">Electronics & Communication Engineering (ECE)</option>
+            </select>
+          </div>
 
-      <p style={{ marginTop: 24, textAlign: 'center', fontSize: 13, color: 'var(--ink2)' }}>
+          <div>
+            <label className={lbl}>Password</label>
+            <div className="relative">
+              <FieldIcon icon={<Lock className="h-4 w-4" />} />
+              <input
+                type="password"
+                {...candidateForm.register('password')}
+                className={inp(!!candidateForm.formState.errors.password) + ' pl-9'}
+                placeholder="••••••••"
+              />
+            </div>
+            {candidateForm.formState.errors.password && (
+              <p className="mt-1 text-xs text-red-500">{candidateForm.formState.errors.password.message}</p>
+            )}
+          </div>
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 text-sm font-bold text-white hover:bg-indigo-500 disabled:opacity-50 transition"
+          >
+            {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+            {isSubmitting ? 'Creating account...' : 'Create Candidate Account →'}
+          </button>
+        </form>
+      )}
+
+      {/* ── EMPLOYER FORM — quick signup only ─────────────────────────────── */}
+      {isEmployer && (
+        <form onSubmit={employerForm.handleSubmit(onEmployerSubmit)} className="space-y-4">
+          <p className="text-xs text-slate-500 dark:text-slate-400 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/40 rounded-xl px-3 py-2">
+            After registration you'll complete your hiring profile — booking links, target roles, and candidate filters.
+          </p>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={lbl}>Your Name</label>
+              <div className="relative">
+                <FieldIcon icon={<User className="h-4 w-4" />} />
+                <input
+                  {...employerForm.register('name')}
+                  className={inp(!!employerForm.formState.errors.name) + ' pl-9'}
+                  placeholder="Sarah Jenkins"
+                />
+              </div>
+              {employerForm.formState.errors.name && (
+                <p className="mt-1 text-xs text-red-500">{employerForm.formState.errors.name.message}</p>
+              )}
+            </div>
+            <div>
+              <label className={lbl}>Company</label>
+              <div className="relative">
+                <FieldIcon icon={<Building2 className="h-4 w-4" />} />
+                <input
+                  {...employerForm.register('company')}
+                  className={inp(!!employerForm.formState.errors.company) + ' pl-9'}
+                  placeholder="Stripe"
+                />
+              </div>
+              {employerForm.formState.errors.company && (
+                <p className="mt-1 text-xs text-red-500">{employerForm.formState.errors.company.message}</p>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label className={lbl}>Work Email</label>
+            <div className="relative">
+              <FieldIcon icon={<Mail className="h-4 w-4" />} />
+              <input
+                type="email"
+                {...employerForm.register('email')}
+                className={inp(!!employerForm.formState.errors.email) + ' pl-9'}
+                placeholder="sarah@stripe.com"
+              />
+            </div>
+            {employerForm.formState.errors.email && (
+              <p className="mt-1 text-xs text-red-500">{employerForm.formState.errors.email.message}</p>
+            )}
+          </div>
+
+          <div>
+            <label className={lbl}>Password</label>
+            <div className="relative">
+              <FieldIcon icon={<Lock className="h-4 w-4" />} />
+              <input
+                type="password"
+                {...employerForm.register('password')}
+                className={inp(!!employerForm.formState.errors.password) + ' pl-9'}
+                placeholder="••••••••"
+              />
+            </div>
+            {employerForm.formState.errors.password && (
+              <p className="mt-1 text-xs text-red-500">{employerForm.formState.errors.password.message}</p>
+            )}
+          </div>
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 text-sm font-bold text-white hover:bg-indigo-500 disabled:opacity-50 transition"
+          >
+            {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+            {isSubmitting ? 'Creating account...' : 'Create Employer Account →'}
+          </button>
+        </form>
+      )}
+
+      <p className="text-center text-sm text-slate-500 dark:text-slate-400">
         Already have an account?{' '}
-        <Link to="/login" style={{ color: 'var(--indigo)', fontWeight: 700, textDecoration: 'none' }}>Sign in</Link>
+        <Link to="/login" className="font-bold text-indigo-600 dark:text-indigo-400 hover:underline">
+          Sign in
+        </Link>
       </p>
     </div>
   );

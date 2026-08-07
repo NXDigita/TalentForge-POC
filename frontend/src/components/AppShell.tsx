@@ -21,6 +21,7 @@ import {
   MessageSquareText,
   Shield,
   Cpu,
+  Briefcase,
   Settings as SettingsIcon
 } from 'lucide-react';
 import api from '../services/api';
@@ -161,6 +162,7 @@ export default function AppShell() {
       section: 'ACCOUNT',
       items: [
         { name: 'Profile', path: '/profile', roles: ['STUDENT', 'REVIEWER', 'EMPLOYER', 'ADMIN'], icon: <User className="h-5 w-5" /> },
+        { name: 'Hiring Profile', path: '/employer-onboarding', roles: ['EMPLOYER'], icon: <Briefcase className="h-5 w-5" /> },
         { name: 'Settings', path: '/settings', roles: ['STUDENT', 'REVIEWER', 'EMPLOYER', 'ADMIN'], icon: <SettingsIcon className="h-5 w-5" /> },
         { name: 'Guide', path: '/guide', roles: ['STUDENT', 'REVIEWER', 'EMPLOYER', 'ADMIN'], icon: <HelpCircle className="h-5 w-5" /> },
       ],
