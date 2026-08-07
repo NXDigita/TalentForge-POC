@@ -18,56 +18,71 @@ TalentForge is a performance-verified talent marketplace for engineering student
 
 ---
 
-## ⚡ Quickstart
+## ⚡ Quickstart & Deployment Commands
 
-### 1. Prerequisites — Docker Infrastructure
+### Step 1: Environment Configuration
+```bash
+# Copy template environment file
+cp .env.example .env
+```
 
-Start PostgreSQL, Redis, and MinIO via Docker Compose:
-
+### Step 2: Start Infrastructure Services
+Spin up PostgreSQL (5439), Redis (6380), and MinIO (9000/9001):
 ```bash
 docker compose up -d
 ```
 
-| Service | Image | Host Port | Container Port |
-| :--- | :--- | :--- | :--- |
-| **PostgreSQL** | `postgres:16.4-alpine` | `5439` | `5432` |
-| **Redis** | `redis:7.2-alpine` | `6380` | `6379` |
-| **MinIO (S3)** | `minio/minio` | `9000 / 9001` | `9000 / 9001` |
-
-### 2. Seed Database
-
-Apply Prisma migrations and seed all users + 8 problems (including flagship Load Balancer):
-
+### Step 3: Install Monorepo Dependencies
 ```bash
-# From repo root
+npm install
+cd backend && npm install && cd ..
+cd frontend && npm install && cd ..
+cd worker && npm install && cd ..
+```
+
+### Step 4: Run Database Migrations
+Generate Prisma client, sync database schema, and apply shortlist pipeline stage migration:
+```bash
+npx prisma generate --schema=backend/prisma/schema.prisma
+npx prisma db push --schema=backend/prisma/schema.prisma
+
+# Windows environment helper script for shortlist stage migration
+.\migrate-hiring-stage.bat
+```
+
+### Step 5: Seed Demo Accounts & Problems
+Seed default users (Student, Reviewer, Employer, Admin) and 8 engineering problems:
+```bash
 npm run seed --prefix backend
 ```
 
-### 3. Launch Development Servers
+### Step 6: Launch Development Servers
 
+**Option A: One-Click Launcher (Windows)**
+```bash
+.\run-app.bat
+```
+
+**Option B: Manual Multi-Terminal Launch**
 ```bash
 # Terminal 1: Express API (Port 5001)
 npm run dev:backend
 
-# Terminal 2: BullMQ Grading Worker
+# Terminal 2: BullMQ Autograder Worker
 npm run dev:worker
 
-# Terminal 3: React + Vite Frontend (Port 5173)
+# Terminal 3: React + Vite Client (Port 5173)
 npm run dev:frontend
 ```
 
-Or use the one-click launcher:
-```bash
-# Windows
-run-app.bat
-```
+### Service Access URLs
+| Service | URL / Port | Credentials / Notes |
+| :--- | :--- | :--- |
+| **Frontend Application** | [http://localhost:5173](http://localhost:5173) | Primary client web portal |
+| **Backend Express API** | [http://localhost:5001](http://localhost:5001) | API Server base URL |
+| **API Health Status** | [http://localhost:5001/api/health](http://localhost:5001/api/health) | Health check endpoint |
+| **MinIO Storage Console** | [http://localhost:9001](http://localhost:9001) | `minioadmin` / `minioadmin_dev_secret` |
 
-| URL | Description |
-| :--- | :--- |
-| [http://localhost:5173](http://localhost:5173) | Frontend client |
-| [http://localhost:5001](http://localhost:5001) | Backend Express API |
-| [http://localhost:5001/health](http://localhost:5001/health) | Health check |
-| [http://localhost:9001](http://localhost:9001) | MinIO console (minioadmin / minioadmin_dev_secret) |
 
 ---
 

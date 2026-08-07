@@ -157,13 +157,14 @@ router.get('/shortlist', async (req: AuthenticatedRequest, res) => {
     const shortlistedCandidates = shortlists.map((s) => {
       const u = s.user;
       const bestSub = u.submissions[0] || null;
-      // Use persisted aggregateScore as primary source of truth
       const totalScore = Math.round(u.aggregateScore) || bestSub?.score || 0;
       const isPublic = u.profilePublic ?? true;
 
       return {
         id: u.id,
         shortlistId: s.id,
+        hiringStage: (s as any).hiringStage ?? 'SHORTLISTED',
+        notes: (s as any).notes ?? null,
         name: u.isAnonymized ? `Anonymous #${u.id.slice(0, 4)}` : u.name,
         email: u.email,
         domain: u.domain?.toUpperCase() || 'CSE',
@@ -187,6 +188,75 @@ router.get('/shortlist', async (req: AuthenticatedRequest, res) => {
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+/**
+ * PATCH /api/employers/shortlist/:candidateId/stage
+ * Updates the hiring pipeline stage for a shortlisted candidate
+ */
+router.patch('/shortlist/:candidateId/stage', requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const employerId = req.user?.userId || req.user?.id;
+    if (!employerId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { candidateId } = req.params;
+    const { hiringStage, notes } = req.body;
+
+    const VALID_STAGES = ['DISCOVERED', 'SHORTLISTED', 'VERIFIED', 'INTERVIEWING', 'OFFERED'];
+    if (!hiringStage || !VALID_STAGES.includes(hiringStage)) {
+      return res.status(400).json({
+        error: `Invalid hiringStage. Must be one of: ${VALID_STAGES.join(', ')}`,
+      });
+    }
+
+    // Upsert: create shortlist entry if not exists, else update stage
+    const updated = await prisma.shortlist.upsert({
+      where: { employerId_candidateId: { employerId, candidateId } },
+      update: {
+        hiringStage,
+        ...(notes !== undefined ? { notes } : {}),
+      } as any,
+      create: {
+        employerId,
+        candidateId,
+        hiringStage,
+        notes: notes ?? null,
+      } as any,
+    });
+
+    return res.json({ ok: true, hiringStage, shortlistId: updated.id });
+  } catch (err) {
+    console.error('[EmployersRoute] Update stage error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/employers/shortlist/:candidateId/stage
+ * Returns the current hiring stage for a specific candidate
+ */
+router.get('/shortlist/:candidateId/stage', requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const employerId = req.user?.userId || req.user?.id;
+    if (!employerId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { candidateId } = req.params;
+    const entry = await prisma.shortlist.findUnique({
+      where: { employerId_candidateId: { employerId, candidateId } },
+    });
+
+    if (!entry) return res.status(404).json({ error: 'Not in shortlist' });
+
+    return res.json({
+      hiringStage: (entry as any).hiringStage ?? 'SHORTLISTED',
+      notes: (entry as any).notes ?? null,
+      shortlistId: entry.id,
+    });
+  } catch (err) {
+    console.error('[EmployersRoute] Get stage error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 
 /**
  * POST /api/employers/shortlist

@@ -12,11 +12,13 @@ import {
 import axios from 'axios';
 import { toast } from 'sonner';
 import CandidateDrawer, { CandidateData } from '../components/CandidateDrawer';
-import HiringStepper from '../components/HiringStepper';
+import HiringStepper, { HiringStage } from '../components/HiringStepper';
 
 export default function EmployerShortlist() {
   const [shortlist, setShortlist] = useState<CandidateData[]>([]);
   const [loading, setLoading] = useState(true);
+  // Track hiring stage per candidate locally for instant UI feedback
+  const [stageMap, setStageMap] = useState<Record<string, HiringStage>>({});
 
   // Drawer state
   const [selectedCandidate, setSelectedCandidate] = useState<CandidateData | null>(null);
@@ -31,11 +33,18 @@ export default function EmployerShortlist() {
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
       const res = await axios.get(`${apiUrl}/employers/shortlist`, { headers });
-      setShortlist(res.data || []);
+      const data = res.data || [];
+      setShortlist(data);
+      // Seed stageMap from API response
+      const map: Record<string, HiringStage> = {};
+      data.forEach((c: any) => {
+        map[c.id] = (c.hiringStage as HiringStage) ?? 'SHORTLISTED';
+      });
+      setStageMap(map);
     } catch (err) {
       console.warn('Failed to fetch shortlist:', err);
       // Fallback sample data
-      setShortlist([
+      const fallback = [
         {
           id: 'usr-1',
           name: 'Karthikeyan',
@@ -48,9 +57,11 @@ export default function EmployerShortlist() {
           psychProfile: { logical: 98, detail: 92, persistence: 95, learning: 96 },
           bestProblem: 'Two Sum',
           bestLanguage: 'python',
-          bestCodeSample: `# Two Sum Solution in Python 3\ndef twoSum(nums, target):\n    seen = {}\n    for i, num in enumerate(nums):\n        if target - num in seen:\n            return [seen[target - num], i]\n        seen[num] = i\n    return []\n`,
-        },
-      ]);
+          bestCodeSample: `# Two Sum\ndef twoSum(nums, target):\n    seen = {}\n    for i, num in enumerate(nums):\n        if target - num in seen:\n            return [seen[target - num], i]\n        seen[num] = i\n    return []`,
+        } as CandidateData,
+      ];
+      setShortlist(fallback);
+      setStageMap({ 'usr-1': 'SHORTLISTED' });
     } finally {
       setLoading(false);
     }
@@ -151,9 +162,16 @@ export default function EmployerShortlist() {
                     )}
                   </div>
 
-                  {/* Horizontal Hiring Pipeline Stepper */}
+                  {/* Horizontal Hiring Pipeline Stepper — wired to API */}
                   <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80">
-                    <HiringStepper currentStage="SHORTLISTED" compact />
+                    <HiringStepper
+                      candidateId={c.id}
+                      currentStage={stageMap[c.id] ?? 'SHORTLISTED'}
+                      compact
+                      onStageChange={(newStage) =>
+                        setStageMap((prev) => ({ ...prev, [c.id]: newStage }))
+                      }
+                    />
                   </div>
                 </div>
 
