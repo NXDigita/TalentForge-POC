@@ -80,11 +80,16 @@ async function issueTokens(userId: string, role: string = 'STUDENT') {
   const accessToken = jwt.sign({ userId, role }, JWT_SECRET, { expiresIn: '7d' });
   const refreshToken = jwt.sign({ userId, role }, JWT_REFRESH_SECRET, { expiresIn: '7d' });
 
-  // Store refresh token in Redis (7 days expiration)
-  await redis.set(`refresh:${userId}`, refreshToken, 'EX', 604800);
+  // Store refresh token in Redis (7 days expiration) with fallback guard
+  try {
+    await redis.set(`refresh:${userId}`, refreshToken, 'EX', 604800);
+  } catch (err: any) {
+    console.warn(`[Auth] Redis token store warning (continuing login):`, err.message);
+  }
 
   return { accessToken, refreshToken };
 }
+
 
 // ─── POST /api/auth/register-employer ───────────────────────────────────────
 router.post('/register-employer', validate(employerRegisterSchema), async (req, res) => {
@@ -210,10 +215,11 @@ router.post('/login', validate(loginSchema), async (req, res) => {
       refreshToken,
     });
   } catch (err: any) {
-    console.error('Login error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    console.error('[Auth] Login error:', err?.message || err);
+    return res.status(500).json({ error: 'Internal server error', message: err?.message });
   }
 });
+
 
 router.post('/refresh', validate(refreshSchema), async (req, res) => {
   try {

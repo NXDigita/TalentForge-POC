@@ -29,9 +29,22 @@ export const userNotifications: NotificationItem[] = [
 ];
 
 /**
+ * GET /api/reviewer/notifications
+ * Returns reviewer/student notifications
+ */
+router.get('/notifications', async (req, res) => {
+  try {
+    return res.json({ notifications: userNotifications, unreadCount: userNotifications.filter(n => !n.read).length });
+  } catch (err: any) {
+    return res.json({ notifications: [], unreadCount: 0 });
+  }
+});
+
+/**
  * GET /api/reviewer/queue
  * Returns candidate submissions queue for expert human evaluation
  */
+
 router.get('/queue', async (req, res) => {
   try {
     const submissions = await prisma.submission.findMany({

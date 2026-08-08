@@ -1,5 +1,3 @@
-import plugin from 'tailwindcss/plugin';
-
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: 'class',
@@ -72,8 +70,8 @@ export default {
     },
   },
   plugins: [
-    plugin(function ({ addVariant }) {
+    function ({ addVariant }) {
       addVariant('midnight', '.midnight &');
-    }),
+    },
   ],
 };

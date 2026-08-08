@@ -61,31 +61,76 @@ html.dark {
   --am-dim:    rgba(245,158,11,0.15);
 }
 
-/* ─── Midnight Theme Tokens ─────────────────────────────────────────────────── */
+/* ─── Midnight / Abyss Theme Tokens ─────────────────────────────────────────── */
 html.midnight {
   color-scheme: dark;
 
-  --bg:        #050810;
-  --surface:   #0E1420;
-  --tint:      #131A28;
-  --border:    #1E2634;
-  --border2:   #2C3547;
+  --bg:        #070C1A;   /* deep oceanic abyss background */
+  --surface:   #0F172A;   /* abyss slate panel card surface */
+  --tint:      #1E293B;   /* secondary hover / active surface */
+  --border:    #1E293B;   /* crisp dark border */
+  --border2:   #334155;   /* active / hover border */
 
-  --ink:       #EDF1F8;
-  --ink2:      #A3AEC2;
-  --ink3:      #6E7A8F;
+  --ink:       #F8FAFC;   /* 100% high-contrast white for primary text */
+  --ink2:      #CBD5E1;   /* luminous slate-300 for secondary text */
+  --ink3:      #94A3B8;   /* slate-400 for muted text */
 
-  --emerald:   #4FD9A4;
-  --emerald-d: #10B981;
-  --em-dim:    rgba(79,217,164,0.15);
+  --emerald:   #10B981;
+  --emerald-d: #059669;
+  --em-dim:    rgba(16,185,129,0.18);
 
-  --indigo:    #7C6CF6;
-  --indigo-l:  #9C8FFF;
-  --in-dim:    rgba(124,108,246,0.18);
+  --indigo:    #818CF8;
+  --indigo-l:  #A5B4FC;
+  --in-dim:    rgba(99,102,241,0.22);
 
-  --amber:     #F0B95E;
-  --am-dim:    rgba(240,185,94,0.15);
+  --amber:     #F59E0B;
+  --am-dim:    rgba(245,158,11,0.18);
 }
+
+/* ─── High Contrast Overrides for Dark / Midnight / Abyss Themes ───────────── */
+html.midnight, html.dark {
+  color: var(--ink);
+  background-color: var(--bg);
+}
+
+html.midnight .text-slate-900,
+html.midnight .text-slate-800,
+html.midnight .text-slate-700,
+html.midnight .text-gray-900,
+html.midnight .text-gray-800,
+html.midnight .text-gray-700,
+html.midnight .text-\[\#111826\] {
+  color: #F8FAFC !important;
+}
+
+html.midnight .text-slate-600,
+html.midnight .text-slate-500,
+html.midnight .text-gray-600,
+html.midnight .text-gray-500,
+html.midnight .text-\[\#4B5563\] {
+  color: #CBD5E1 !important;
+}
+
+html.midnight .text-slate-400,
+html.midnight .text-gray-400,
+html.midnight .text-\[\#9AA3AF\] {
+  color: #94A3B8 !important;
+}
+
+/* Surface background overrides for Midnight / Dark mode */
+html.midnight .bg-white,
+html.dark .bg-white {
+  background-color: var(--surface) !important;
+}
+
+html.midnight .bg-slate-50,
+html.midnight .bg-gray-50,
+html.dark .bg-slate-50,
+html.dark .bg-gray-50 {
+  background-color: var(--tint) !important;
+}
+
+
 
 /* ─── Base Reset ─────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }

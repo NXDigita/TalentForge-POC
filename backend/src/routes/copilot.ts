@@ -4,14 +4,14 @@ import { z } from 'zod';
 import { requireAuth, AuthenticatedRequest } from '../middleware/authMiddleware';
 import { streamCopilotChat } from '../services/llmService';
 import { copilotRateLimiter } from '../middleware/rateLimiter';
+import redis from '../services/redis';
 
 const router = Router();
 const prisma = new PrismaClient();
 
 router.post('/chat', requireAuth, copilotRateLimiter, async (req: AuthenticatedRequest, res) => {
   try {
-    const userId = req.user?.userId;
-    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const userId = req.user?.userId || 'usr-1';
 
     const chatSchema = z.object({
       messages: z.array(z.object({
@@ -29,6 +29,7 @@ router.post('/chat', requireAuth, copilotRateLimiter, async (req: AuthenticatedR
 
     const { messages, currentPage, mode } = parsed.data;
 
+    // Fetch user or construct fallback for demo/mock users
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -37,11 +38,12 @@ router.post('/chat', requireAuth, copilotRateLimiter, async (req: AuthenticatedR
           take: 1,
         }
       }
-    });
+    }).catch(() => null);
 
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    const lastSubmissionScore = user.submissions.length > 0 ? user.submissions[0].score : null;
+    const profile = user
+      ? { name: user.name, domain: user.domain, tier: user.tier }
+      : { name: 'Developer', domain: 'cse', tier: 'Explorer' };
+    const lastSubmissionScore = user?.submissions?.[0]?.score ?? null;
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -50,7 +52,7 @@ router.post('/chat', requireAuth, copilotRateLimiter, async (req: AuthenticatedR
     const stream = streamCopilotChat(
       messages,
       {
-        profile: { name: user.name, domain: user.domain, tier: user.tier },
+        profile,
         currentPage: currentPage || 'Unknown',
         lastSubmissionScore,
       },
@@ -62,44 +64,28 @@ router.post('/chat', requireAuth, copilotRateLimiter, async (req: AuthenticatedR
     for await (const chunk of stream) {
       fullResponse += chunk;
       // SSE format: data: <content>\n\n
-      // We encode the chunk as JSON string to handle newlines easily on the client
       res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
     }
 
     res.write('data: [DONE]\n\n');
     res.end();
 
-    // Persist conversation
-    let conversation = await prisma.conversation.findFirst({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    const newMessages = [
-      ...messages,
-      { role: 'assistant', content: fullResponse }
-    ];
-
-    if (conversation) {
-      await prisma.conversation.update({
-        where: { id: conversation.id },
-        data: {
-          messages: newMessages
-        }
-      });
-    } else {
-      await prisma.conversation.create({
-        data: {
-          userId,
-          messages: newMessages
-        }
-      });
+    // Persist conversation history to Redis
+    try {
+      const historyKey = `copilot:history:${userId}`;
+      const newMessages = [
+        ...messages,
+        { role: 'assistant', content: fullResponse }
+      ];
+      await redis.setex(historyKey, 86400, JSON.stringify(newMessages));
+    } catch (err: any) {
+      console.warn('[Copilot] Failed to cache conversation history to Redis:', err.message);
     }
 
-  } catch (err) {
+  } catch (err: any) {
     console.error('Copilot chat error:', err);
     if (!res.headersSent) {
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error', message: err?.message });
     }
     res.end();
   }

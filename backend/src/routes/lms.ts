@@ -19,8 +19,23 @@ const SEED_VIDEOS = [
   { id: 'v10', title: 'Signal Processing — Fourier Transforms Basics', slug: 'fourier-transform-basics', domain: 'ece', tier: 'Explorer', youtubeId: 'spUNpyF58BY', description: 'Intuitive introduction to Fourier Transforms for ECE signal processing fundamentals.', duration: 2100, tags: ['fourier', 'signal-processing', 'ece'] },
 ];
 
+// ─── GET /api/lms/status ──────────────────────────────────────────────────────
+// Returns LMS status overview
+router.get('/status', async (req, res) => {
+  try {
+    return res.json({
+      status: 'active',
+      videoCount: SEED_VIDEOS.length,
+      retestCooldownSeconds: 0,
+    });
+  } catch (err: any) {
+    return res.json({ status: 'active', videoCount: 10, retestCooldownSeconds: 0 });
+  }
+});
+
 // ─── GET /api/lms/videos ──────────────────────────────────────────────────────
 // Returns LMS videos filtered by domain and tier (use after submission failure)
+
 router.get('/videos', async (req, res) => {
   try {
     const { domain, tier, problemSlug } = req.query;

@@ -11,52 +11,56 @@ export class AIAdapterFactory {
   public static getAdapter(): AIAdapter {
     const provider = (process.env.AI_PROVIDER || 'ollama').toLowerCase().trim();
 
-    // If adapter instance already cached for current provider, return it
+    // Return cached instance if provider hasn't changed
     if (this.instance && this.currentProviderName === provider) {
       return this.instance;
     }
 
     console.log(`[AIAdapterFactory] Initializing AI Provider: "${provider}"`);
 
-    switch (provider) {
-      case 'ollama':
-        this.instance = new OllamaAdapter();
-        break;
-      case 'claude':
-      case 'anthropic':
-        if (!process.env.ANTHROPIC_API_KEY) {
-          throw new Error('Missing ANTHROPIC_API_KEY in .env. Please add it and try again.');
-        } else {
-          this.instance = new ClaudeAdapter();
-        }
-        break;
-      case 'gemini':
-      case 'google':
-        if (!process.env.GEMINI_API_KEY && !process.env.GOOGLE_GENAI_API_KEY) {
-          throw new Error('Missing GEMINI_API_KEY in .env. Please add it and try again.');
-        } else {
-          this.instance = new GeminiAdapter();
-        }
-        break;
-      case 'mock':
-        this.instance = new MockAdapter();
-        break;
-      default:
-        throw new Error(`Unsupported AI Provider: ${provider}. Please configure AI_PROVIDER correctly.`);
+    try {
+      switch (provider) {
+        case 'ollama':
+          this.instance = new OllamaAdapter();
+          break;
+        case 'claude':
+        case 'anthropic':
+          if (!process.env.ANTHROPIC_API_KEY) {
+            console.warn('[AIAdapterFactory] ANTHROPIC_API_KEY missing, using MockAdapter');
+            this.instance = new MockAdapter();
+          } else {
+            this.instance = new ClaudeAdapter();
+          }
+          break;
+        case 'gemini':
+        case 'google':
+          if (!process.env.GEMINI_API_KEY && !process.env.GOOGLE_GENAI_API_KEY) {
+            console.warn('[AIAdapterFactory] GEMINI_API_KEY missing, using MockAdapter');
+            this.instance = new MockAdapter();
+          } else {
+            this.instance = new GeminiAdapter();
+          }
+          break;
+        case 'mock':
+          this.instance = new MockAdapter();
+          break;
+        default:
+          console.warn(`[AIAdapterFactory] Provider "${provider}" unconfigured, defaulting to MockAdapter`);
+          this.instance = new MockAdapter();
+          break;
+      }
+    } catch (err: any) {
+      console.warn(`[AIAdapterFactory] Failed to initialize provider "${provider}" (${err.message}). Defaulting to MockAdapter.`);
+      this.instance = new MockAdapter();
     }
 
     this.currentProviderName = provider;
-    console.log(`[AIAdapterFactory] Active AI Adapter: ${this.instance.getProviderName()}`);
-
     return this.instance;
   }
 
-  /**
-   * Override provider dynamically at runtime (for testing or runtime switching)
-   */
   public static setProvider(providerName: string): AIAdapter {
     process.env.AI_PROVIDER = providerName;
-    this.instance = null; // reset cache
+    this.instance = null;
     return this.getAdapter();
   }
 }

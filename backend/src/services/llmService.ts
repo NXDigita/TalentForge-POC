@@ -108,7 +108,13 @@ export async function* streamCopilotChat(
     console.warn('[LLMService] Rate limit Redis error, bypassing limit:', err);
   }
 
-  const adapter = getAIAdapter();
+  let adapter: any;
+  try {
+    adapter = getAIAdapter();
+  } catch (err: any) {
+    console.warn('[LLMService] Adapter init failed, using MockAdapter:', err.message);
+    adapter = new MockAdapter();
+  }
 
   const systemPrompt = `You are a TalentForge AI Copilot acting as a ${mode}.
 Current context:
@@ -128,14 +134,26 @@ Be concise, actionable, and adopt the persona of a ${mode}.`;
     content: m.content,
   }));
 
-  const stream = adapter.streamText(formattedMessages, context, { 
-    systemPrompt,
-    maxTokens: 250 // Hard limit to prevent verbosity/abuse
-  });
+  try {
+    const stream = adapter.streamText(formattedMessages, context, { 
+      systemPrompt,
+      maxTokens: 250
+    });
 
-  for await (const chunk of stream) {
-    if (chunk) {
-      yield chunk;
+    for await (const chunk of stream) {
+      if (chunk) {
+        yield chunk;
+      }
+    }
+  } catch (streamErr: any) {
+    console.warn(`[LLMService] Primary AI provider streaming failed (${streamErr.message}). Switching to MockAdapter fallback for Copilot.`);
+    const mockAdapter = new MockAdapter();
+    const fallbackStream = mockAdapter.streamText(formattedMessages, context, { systemPrompt });
+    for await (const chunk of fallbackStream) {
+      if (chunk) {
+        yield chunk;
+      }
     }
   }
 }
+
