@@ -65,31 +65,44 @@ interface ProblemCasesResponse {
 
 // ─── Redis / Socket.IO emitter ────────────────────────────────────────────────
 
-const redisUrl   = process.env.REDIS_URL ?? 'redis://:redis_dev_secret@localhost:6380';
-const connection = new IORedis(redisUrl, {
-  maxRetriesPerRequest: null,
-  enableOfflineQueue:   true,
-  keepAlive:            10000,
-  retryStrategy: (times) => {
-    return Math.min(times * 200, 3000); // Continuous backoff retry (never return null to avoid ECONNABORTED)
-  },
-});
+const redisUrl = process.env.REDIS_URL ?? 'redis://:redis_dev_secret@127.0.0.1:6380';
 
-connection.on('error', (err: any) => {
-  // Suppress connection reset and unreachable socket errors during dev reloads
-  if (
-    err.code === 'ECONNREFUSED' ||
-    err.code === 'ENOTFOUND' ||
-    err.code === 'ECONNABORTED' ||
-    err.code === 'ECONNRESET'
-  ) {
-    return;
-  }
-  console.error('[Worker] Redis client error:', err.message);
-});
+function isTransientSocketError(err: any): boolean {
+  if (!err) return false;
+  const code = err.code || '';
+  const msg = err.message || '';
+  return (
+    code === 'ECONNREFUSED' ||
+    code === 'ENOTFOUND' ||
+    code === 'ECONNABORTED' ||
+    code === 'ECONNRESET' ||
+    msg.includes('ECONNABORTED') ||
+    msg.includes('ECONNRESET') ||
+    msg.includes('ECONNREFUSED')
+  );
+}
+
+export function createRedisConnection() {
+  const conn = new IORedis(redisUrl, {
+    family:               4, // Strictly use IPv4 loopback (bypasses Windows dual-stack IPv6 socket aborts)
+    maxRetriesPerRequest: null,
+    enableOfflineQueue:   true,
+    keepAlive:            10000,
+    retryStrategy: (times) => Math.min(times * 200, 3000),
+  });
 
 
+  conn.on('error', (err: any) => {
+    if (isTransientSocketError(err)) return;
+    console.error('[Worker] Redis connection error:', err.message);
+  });
+
+  return conn;
+}
+
+const connection = createRedisConnection();
 const emitter = new Emitter(connection);
+
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -430,7 +443,7 @@ const worker = new Worker<GradeJobData>(
     }
   },
   {
-    connection: connection.duplicate() as any,
+    connection:      createRedisConnection() as any,
     concurrency:     4,
     stalledInterval: 15_000, // Tuned stalled interval (15s)
     maxStalledCount: 2,
@@ -438,7 +451,7 @@ const worker = new Worker<GradeJobData>(
 );
 
 // ─── Profile Embedding Queue ─────────────────────────────────────────────────
-const profileQueue = new Queue('profile-embedding', { connection: connection as any });
+const profileQueue = new Queue('profile-embedding', { connection: createRedisConnection() as any });
 const profileWorker = new Worker(
   'profile-embedding',
   async (job) => {
@@ -463,7 +476,7 @@ const profileWorker = new Worker(
       return data;
     }
   },
-  { connection: connection as any }
+  { connection: createRedisConnection() as any }
 );
 
 // Register repeatable job for nightly embedding (midnight every day)
@@ -492,10 +505,14 @@ worker.on('stalled', (jobId) => {
 });
 
 worker.on('error', (err) => {
-  // BullMQ emits worker errors when the Redis connection is lost
-  // Suppress ECONNREFUSED to avoid duplicate logs (already handled by connection.on('error'))
-  if ((err as any).code === 'ECONNREFUSED' || (err as any).code === 'ENOTFOUND') return;
+  if (isTransientSocketError(err)) return;
   console.error('[Worker] Worker runtime error:', err.message);
 });
 
+profileWorker.on('error', (err) => {
+  if (isTransientSocketError(err)) return;
+  console.error('[Worker] ProfileWorker runtime error:', err.message);
+});
+
 console.log('[Worker] 🚀 Grading worker active (concurrency: 4, stalledInterval: 15s)');
+

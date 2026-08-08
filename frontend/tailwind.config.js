@@ -1,4 +1,4 @@
-const plugin = require('tailwindcss/plugin');
+import plugin from 'tailwindcss/plugin';
 
 /** @type {import('tailwindcss').Config} */
 export default {
@@ -29,32 +29,51 @@ export default {
           600: '#4f46e5',
           700: '#4338ca',
           800: '#3730a3',
-          900: '#312e81'
+          900: '#312e81',
         },
-        bg:'#050810',
-        panel:'#0E1420',
-        panel2:'#131A28',
-        panel3:'#0A0F19',
-        line:'#1E2634',
-        line2:'#2C3547',
-        tx:'#EDF1F8',
-        tx2:'#A3AEC2',
-        tx3:'#6E7A8F',
-        indigo:'#7C6CF6',
-        indigo2:'#9C8FFF',
-        amber:'#F0B95E',
-        green:'#4FD9A4',
-        cyan:'#6BD6E8',
-        red:'#FF7A75',
+        bg: '#050810',
+        panel: '#0E1420',
+        panel2: '#131A28',
+        panel3: '#0A0F19',
+        line: '#1E2634',
+        line2: '#2C3547',
+        tx: '#EDF1F8',
+        tx2: '#A3AEC2',
+        tx3: '#6E7A8F',
+        indigo: '#7C6CF6',
+        indigo2: '#9C8FFF',
+        amber: '#F0B95E',
+        green: '#4FD9A4',
+        cyan: '#6BD6E8',
+        red: '#FF7A75',
       },
       fontFamily: {
-        sans: ['PlayStation SST', 'SST', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif']
-      }
-    }
+        sans: [
+          'Inter',
+          'ui-sans-serif',
+          'system-ui',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          'Segoe UI',
+          'Roboto',
+          'sans-serif',
+        ],
+        mono: [
+          'ui-monospace',
+          'SF Mono',
+          'JetBrains Mono',
+          'Menlo',
+          'Consolas',
+          'monospace',
+        ],
+        display: ['Space Grotesk', 'Inter', 'sans-serif'],
+        space: ['Space Grotesk', 'sans-serif'],
+      },
+    },
   },
   plugins: [
-    plugin(function({ addVariant }) {
+    plugin(function ({ addVariant }) {
       addVariant('midnight', '.midnight &');
-    })
-  ]
+    }),
+  ],
 };

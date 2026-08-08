@@ -6,6 +6,11 @@
 :root {
   color-scheme: light;
 
+  /* Font Tokens */
+  --app-font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --app-font-display: "Space Grotesk", "Inter", sans-serif;
+  font-family: var(--app-font-sans);
+
   /* Home-page palette — default Light theme */
   --bg:        #FBFBF9;   /* warm off-white page background */
   --surface:   #FFFFFF;   /* card / sidebar / topbar surface */
@@ -87,16 +92,21 @@ html.midnight {
 
 body {
   margin: 0;
-  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--app-font-sans);
   background: var(--bg);
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6, .font-display, .font-space {
+  font-family: var(--app-font-display);
 }
 
 button, input, textarea, select {
   font: inherit;
   color: inherit;
 }
+
 
 option {
   background-color: var(--surface);

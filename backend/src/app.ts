@@ -120,7 +120,8 @@ const io = new Server(server, {
 // Redis adapter: allows the worker's @socket.io/redis-emitter to publish
 // events into socket.io rooms managed by this server.
 async function setupRedisAdapter() {
-  const redisUrl = process.env.REDIS_URL ?? 'redis://:redis_dev_secret@localhost:6380';
+  const redisUrl = process.env.REDIS_URL ?? 'redis://:redis_dev_secret@127.0.0.1:6380';
+
 
   const pubClient = createClient({
     url: redisUrl,

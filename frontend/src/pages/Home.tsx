@@ -1,11 +1,33 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 // ─── Audience toggle logic ────────────────────────────────────────────────────
 type Audience = 'candidate' | 'employer';
 
+const HERO_BENEFITS = [
+  'Get hired on what you build.',
+  'Prove your skills with real code.',
+  'Bypass resume filters with verified proof.',
+  'Get direct interview invites from recruiters.',
+  'Mint on-chain ERC-721 badges on Polygon.',
+];
+
 export default function Home() {
   const [aud, setAud] = useState<Audience>('candidate');
+  const [benefitIdx, setBenefitIdx] = useState(0);
+  const [isFading, setIsFading] = useState(false);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setIsFading(true);
+      setTimeout(() => {
+        setBenefitIdx((prev) => (prev + 1) % HERO_BENEFITS.length);
+        setIsFading(false);
+      }, 350);
+    }, 3200);
+
+    return () => clearInterval(timer);
+  }, []);
 
   return (
     <div
@@ -151,13 +173,27 @@ export default function Home() {
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 600, color: '#4F46E5', background: '#ECEBFE', border: '1px solid rgba(79,70,229,.15)', borderRadius: 999, padding: '6px 14px' }}>
                 <span>✦</span> v1.1 — Public portfolios · AI recommendations · Interviews
               </div>
-              <h1 className="font-display" style={{ fontWeight: 800, fontSize: 'clamp(36px,5vw,56px)', lineHeight: 1.02, letterSpacing: '-.03em', marginTop: 24 }}>
+              
+              {/* Dynamic Animated Hero Heading */}
+              <h1 className="font-display" style={{ fontWeight: 800, fontSize: 'clamp(36px,5vw,56px)', lineHeight: 1.05, letterSpacing: '-.03em', marginTop: 24, minHeight: '2.4em' }}>
                 Proof beats a résumé.<br />
-                <span style={{ color: '#059669' }}>Get hired on what you build.</span>
+                <span
+                  style={{
+                    color: '#059669',
+                    display: 'inline-block',
+                    transition: 'all 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+                    opacity: isFading ? 0 : 1,
+                    transform: isFading ? 'translateY(10px)' : 'translateY(0)',
+                  }}
+                >
+                  {HERO_BENEFITS[benefitIdx]}
+                </span>
               </h1>
+
               <p style={{ fontSize: 16, color: '#4B5563', lineHeight: 1.7, marginTop: 20, maxWidth: '54ch' }}>
                 TalentForge turns the challenges you solve into <strong style={{ color: '#111826' }}>verified skill badges</strong> — earned through real sandbox code execution, behavioral psychometrics, and expert human review. Build a public portfolio and get in front of employers who trust it.
               </p>
+
 
               {/* Audience Toggle */}
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 32, padding: 4, borderRadius: 12, background: '#fff', border: '1px solid #E7E9E5', fontSize: 13 }} className="soft-sm">
@@ -358,20 +394,105 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ═══ FAIR SCORE ═══ */}
-        <section style={{ borderTop: '1px solid #E7E9E5', borderBottom: '1px solid #E7E9E5', background: '#F2F6F4' }}>
-          <div className="max-w-3xl mx-auto px-5" style={{ paddingTop: 64, paddingBottom: 64, textAlign: 'center' }}>
-            <h2 className="font-display" style={{ fontWeight: 800, fontSize: 30, letterSpacing: '-.02em' }}>One score no single signal can game</h2>
-            <p style={{ fontSize: 14.5, color: '#4B5563', marginTop: 12 }}>Every candidate's aggregate is a fixed, transparent weighting.</p>
-            <div style={{ marginTop: 32, display: 'flex', height: 44, borderRadius: 12, overflow: 'hidden', border: '1px solid #E7E9E5', fontFamily: 'JetBrains Mono,monospace', fontSize: 12, fontWeight: 600, color: '#fff' }} className="soft-sm">
-              <div style={{ width: '50%', background: '#059669', display: 'grid', placeItems: 'center' }}>Code 50%</div>
-              <div style={{ width: '25%', background: '#10B981', display: 'grid', placeItems: 'center' }}>Psych 25%</div>
-              <div style={{ width: '15%', background: '#4F46E5', display: 'grid', placeItems: 'center' }}>Profile 15%</div>
-              <div style={{ width: '10%', background: '#F59E0B', display: 'grid', placeItems: 'center' }}>GitHub 10%</div>
+        {/* ═══ FAIR SCORE SECTION ═══ */}
+        <section style={{ borderTop: '1px solid #E7E9E5', borderBottom: '1px solid #E7E9E5', background: '#F8FAFC' }}>
+          <div className="max-w-5xl mx-auto px-5" style={{ paddingTop: 80, paddingBottom: 80 }}>
+            
+            {/* Header statement */}
+            <div style={{ textAlign: 'center', maxWidth: 680, margin: '0 auto' }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 700, color: '#059669', background: '#E7F7F0', border: '1px solid rgba(16,185,129,.3)', borderRadius: 999, padding: '6px 16px' }} className="soft-sm">
+                <span style={{ fontSize: 14 }}>🛡️</span> Uncheatable Multi-Signal Scoring Engine
+              </div>
+
+              <h2 className="font-display" style={{ fontWeight: 800, fontSize: 'clamp(28px,4.5vw,42px)', letterSpacing: '-.03em', marginTop: 20, lineHeight: 1.1, color: '#0F172A' }}>
+                One Unified Score.<br />
+                <span style={{ background: 'linear-gradient(135deg, #059669 0%, #4F46E5 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                  Impossible to Game.
+                </span>
+              </h2>
+
+              <p style={{ fontSize: 16, color: '#475569', marginTop: 16, lineHeight: 1.65, fontWeight: 450 }}>
+                Resumes can be fluffed. Practice answers can be memorized. TalentForge eliminates hiring bias by combining <strong>4 distinct technical & cognitive signals</strong> into one transparent 100-point Aggregate Score — where <strong>75% is strictly backed by live code execution and psychometric data</strong>.
+              </p>
             </div>
-            <p style={{ fontSize: 12, color: '#9AA3AF', marginTop: 12, fontFamily: 'JetBrains Mono,monospace' }}>Hover any candidate's score in the employer drawer to see this exact breakdown.</p>
+
+            {/* Why It's Impossible to Game - 3 Key Pillars */}
+            <div className="grid md:grid-cols-3 gap-5" style={{ marginTop: 40 }}>
+              {[
+                { title: 'Zero Resume Fluff', icon: '🚫', color: '#059669', bg: '#E7F7F0', desc: 'Keyword stuffing carries zero weight. Real Docker code execution represents 50% of the total score.' },
+                { title: 'Hidden Test Cases', icon: '⚡', color: '#4F46E5', bg: '#ECEBFE', desc: 'Hidden edge-case tests & Big-O runtime analysis immediately catch copied or hardcoded solutions.' },
+                { title: 'Holistic Evaluation', icon: '🧠', color: '#F59E0B', bg: '#FEF4E4', desc: '20-question psychometrics (25%) + GitHub history (10%) ensure complete technical & behavioral proof.' },
+              ].map((p) => (
+                <div key={p.title} className="card soft-sm" style={{ padding: 22, background: '#fff', border: '1px solid #E2E8F0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ width: 36, height: 36, borderRadius: 10, background: p.bg, color: p.color, display: 'grid', placeItems: 'center', fontSize: 18 }}>{p.icon}</span>
+                    <span className="font-display" style={{ fontWeight: 700, fontSize: 16, color: '#0F172A' }}>{p.title}</span>
+                  </div>
+                  <p style={{ fontSize: 13, color: '#64748B', marginTop: 10, lineHeight: 1.6 }}>{p.desc}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Visual Formula Showcase Container */}
+            <div style={{ marginTop: 40, borderRadius: 24, background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)', padding: '32px 28px', color: '#fff', boxShadow: '0 20px 40px -15px rgba(15,23,42,0.25)', border: '1px solid #334155' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
+                <div>
+                  <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono,monospace', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#34D399', fontWeight: 700 }}>FIXED TRANSPARENT WEIGHTING</span>
+                  <h3 className="font-display" style={{ fontWeight: 700, fontSize: 20, marginTop: 4, color: '#F8FAFC' }}>The 4-Part Aggregate Formula</h3>
+                </div>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontFamily: 'JetBrains Mono,monospace', background: 'rgba(52,211,153,0.15)', color: '#34D399', padding: '6px 14px', borderRadius: 10, border: '1px solid rgba(52,211,153,0.3)' }}>
+                  <span>✓ 100% Auditable Formula</span>
+                </div>
+              </div>
+
+              {/* Stacked Segmented Progress Bar */}
+              <div style={{ display: 'flex', height: 52, borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.15)', fontFamily: 'JetBrains Mono,monospace', fontSize: 12, fontWeight: 700 }} className="soft">
+                <div style={{ width: '50%', background: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.2s' }} className="score-seg" title="Code Execution: 50%">
+                  <span>💻 Code Sandbox</span>
+                  <span style={{ background: 'rgba(255,255,255,0.22)', padding: '3px 9px', borderRadius: 6 }}>50%</span>
+                </div>
+                <div style={{ width: '25%', background: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.2s' }} className="score-seg" title="Psychometrics: 25%">
+                  <span>🧠 Psych</span>
+                  <span style={{ background: 'rgba(255,255,255,0.22)', padding: '3px 9px', borderRadius: 6 }}>25%</span>
+                </div>
+                <div style={{ width: '15%', background: '#6366F1', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.2s' }} className="score-seg" title="Profile Depth: 15%">
+                  <span>👤 Profile</span>
+                  <span style={{ background: 'rgba(255,255,255,0.22)', padding: '3px 7px', borderRadius: 6 }}>15%</span>
+                </div>
+                <div style={{ width: '10%', background: '#F59E0B', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.2s' }} className="score-seg" title="GitHub Activity: 10%">
+                  <span>🐙 GH</span>
+                  <span style={{ background: 'rgba(255,255,255,0.22)', padding: '3px 7px', borderRadius: 6 }}>10%</span>
+                </div>
+              </div>
+
+              {/* 4 Cards Explaining Each Component inside Dark Container */}
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4" style={{ marginTop: 24 }}>
+                {[
+                  { title: 'Code Execution', weight: '50%', icon: '💻', color: '#34D399', bg: 'rgba(52,211,153,0.12)', border: 'rgba(52,211,153,0.25)', desc: 'Real Docker sandbox execution, Big-O complexity & style analysis.' },
+                  { title: 'Psychometrics', weight: '25%', icon: '🧠', color: '#34D399', bg: 'rgba(52,211,153,0.12)', border: 'rgba(52,211,153,0.25)', desc: '20-question diagnostic across 5 core engineering cognitive traits.' },
+                  { title: 'Profile Depth', weight: '15%', icon: '👤', color: '#818CF8', bg: 'rgba(129,140,248,0.12)', border: 'rgba(129,140,248,0.25)', desc: 'Degree verification, portfolio links & verified resume parsing.' },
+                  { title: 'GitHub Signal', weight: '10%', icon: '🐙', color: '#FBBF24', bg: 'rgba(251,191,36,0.12)', border: 'rgba(251,191,36,0.25)', desc: 'Public repo activity, commit frequency, account age & followers.' },
+                ].map((c) => (
+                  <div key={c.title} style={{ padding: 18, borderRadius: 16, background: 'rgba(15,23,42,0.6)', border: `1px solid ${c.border}` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ width: 32, height: 32, borderRadius: 8, background: c.bg, color: c.color, display: 'grid', placeItems: 'center', fontSize: 16 }}>{c.icon}</span>
+                      <span style={{ fontSize: 12, fontFamily: 'JetBrains Mono,monospace', fontWeight: 800, color: c.color, background: c.bg, padding: '3px 8px', borderRadius: 6, border: `1px solid ${c.border}` }}>{c.weight}</span>
+                    </div>
+                    <div className="font-display" style={{ fontWeight: 700, fontSize: 15, marginTop: 12, color: '#F8FAFC' }}>{c.title}</div>
+                    <p style={{ fontSize: 12, color: '#94A3B8', marginTop: 6, lineHeight: 1.5 }}>{c.desc}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ marginTop: 24, paddingTop: 18, borderTop: '1px solid #334155', display: 'flex', alignItems: 'center', justifyBetween: 'space-between', flexWrap: 'wrap', gap: 12, fontSize: 12, color: '#94A3B8', fontFamily: 'JetBrains Mono,monospace' }}>
+                <span>💡 Recruiter Tooltip: Hover any candidate's score on the Employer Discover page to view their exact 4-part breakdown.</span>
+              </div>
+            </div>
+
           </div>
         </section>
+
+
 
         {/* ═══ BADGE SHOWCASE ═══ */}
         <section id="badges" className="max-w-6xl mx-auto px-5" style={{ paddingTop: 80, paddingBottom: 80 }}>
